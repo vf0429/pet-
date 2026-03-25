@@ -1,0 +1,9 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "你正在处理 PetWell 宠物健康平台的商家后台系统。这是一个多租户 SaaS 产品，包含 Shop（宠物店）和 Clinic（宠物诊所）两种业务类型。",
+    "技术栈：Go 1.22+ 后端 / Next.js 15 前端 / SQLite 开发环境 / Supabase PostgreSQL 生产环境",
+    "核心架构原则：所有数据库查询必须加 tenant_id 隔离；状态变更必须经过状态机校验；同步队列写入必须在事务内完成；所有 API 需要 session 鉴权",
+    "当前项目包含 5 个开发阶段，详见各 Phase 目录下的详细计划文档。"
+  ]
+}

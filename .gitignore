@@ -1,0 +1,19 @@
+node_modules/
+.next/
+dist/
+*.log
+test-results/
+playwright-report/
+.env.local
+.env
+
+# Go
+*.exe
+*.db
+petwell.db
+
+# OS
+.DS_Store
+
+# opencode logs
+.opencode/sessions/
