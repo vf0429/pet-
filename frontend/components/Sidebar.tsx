@@ -13,10 +13,21 @@ type NavItem = {
   businessType: 'common' | 'shop' | 'clinic'
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/merchant/dashboard', businessType: 'common' },
-  { label: 'Shop Overview', href: '/merchant/shop', businessType: 'shop' },
+const COMMON_NAV_ITEMS: NavItem[] = []
+
+const SHOP_NAV_ITEMS: NavItem[] = [
+  { label: 'Dashboard', href: '/merchant/shop/dashboard', businessType: 'shop' },
+  { label: 'Orders', href: '/merchant/shop/orders', businessType: 'shop' },
+  { label: 'Products', href: '/merchant/shop/products', businessType: 'shop' },
+  { label: 'Schedule', href: '/merchant/shop/schedule', businessType: 'shop' },
+]
+
+const CLINIC_NAV_ITEMS: NavItem[] = [
   { label: 'Clinic Overview', href: '/merchant/clinic', businessType: 'clinic' },
+  { label: 'Appointments', href: '/merchant/clinic/appointments', businessType: 'clinic' },
+  { label: 'Followups', href: '/merchant/clinic/followups', businessType: 'clinic' },
+  { label: 'Insurance', href: '/merchant/clinic/insurance', businessType: 'clinic' },
+  { label: 'Pharmacy', href: '/merchant/clinic/pharmacy', businessType: 'clinic' },
 ]
 
 export default function Sidebar() {
@@ -32,10 +43,13 @@ export default function Sidebar() {
 
   const visibleNavItems = useMemo(() => {
     if (!user) return []
-    return NAV_ITEMS.filter((item) => {
-      if (item.businessType === 'common') return true
-      return item.businessType === user.activeBusinessType
-    })
+    if (user.activeBusinessType === 'shop') {
+      return [...COMMON_NAV_ITEMS, ...SHOP_NAV_ITEMS]
+    }
+    if (user.activeBusinessType === 'clinic') {
+      return [...COMMON_NAV_ITEMS, ...CLINIC_NAV_ITEMS]
+    }
+    return COMMON_NAV_ITEMS
   }, [user])
 
   const handleSwitch = async (target: BusinessType) => {

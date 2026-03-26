@@ -5,6 +5,10 @@ export function middleware(request: NextRequest) {
   const sessionId = request.cookies.get('session_id')?.value
 
   // Allow API routes to pass through to the rewrite proxy (no redirect)
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.next()
+  }
+
   if (pathname.startsWith('/merchant/auth')) {
     return NextResponse.next()
   }

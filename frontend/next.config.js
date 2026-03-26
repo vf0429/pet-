@@ -3,7 +3,7 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: '/merchant/:path*',
+        source: '/api/merchant/:path*',
         destination: 'http://localhost:8080/merchant/:path*',
       },
     ]
