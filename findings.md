@@ -133,3 +133,161 @@
 - 仓库中尚无 `/app/v1/*` 路由命名空间；若直接复用 `/merchant/*` 会再次回到旧的会话式设计。
 - 目前未见稳定的 clinic project provisioning 流程，因此 `Merchant Project URL` 与 `Merchant Public/App Key` 的签发/轮换仍需 backend 进一步细化。
 - 当前 App 侧只有一个旧 Swift 文件可见；本轮可以完成 Vaccination 文档重规划，但不能替代完整 App 迁移实施验证。
+
+## Vaccination Documentation / Checklist Findings (2026-03-27)
+- 本轮重心已明确切换为 documentation / checklist / verification strategy，而非直接编写完整 E2E。
+- `VaccineBookingView.swift` 证实旧链路是：App 直接调用 `http://localhost:8090/api/merchant/*`，通过硬编码 clinic email/password 登录，缓存 `session_id` 到 `UserDefaults`，后续以 `X-Session-ID` 访问 appointments。
+- `backend/middleware/auth.go` 证实当前 Merchant internal API 仍是商户员工会话模型：强依赖 `X-Session-ID` + `X-Business-Type`，因此它只能归类为 internal API，不能直接暴露给 consumer App。
+- `frontend/next.config.js` 证实 `http://localhost:3500` 只是 Portal 浏览器入口；`/api/merchant/*` 只是前端 rewrite 到 `http://localhost:8080/merchant/*`，不构成 App 契约面。
+- `backend/handlers/clinic_appointments.go` + `backend/models/clinic.go` 证实 Portal 当前对 clinic booking 的可见性锚点仍是 `clinic_appointments`；因此 Vaccination facade 的首期验证应覆盖“外部 booking 是否成功落入 `clinic_appointments` 并可被 Portal 现有列表/矩阵消费”。
+- 当前仓库内可见的 App→Merchant 明确直连点只有 Vaccination；本次 grep 未发现其他 Swift 文件直接请求 `/api/merchant/*` / `:8080` / `:3500` / `/app/v1`。这意味着 integration guide 应先把 Vaccination 标为已知 legacy direct-link，并把其他 future functions 视为“接入前先做 inventory 审计”的对象。
+- 验证策略上必须始终拆分 3 个 surface：
+  - `Portal URL` = merchant staff browser UI（本地 `3500`）
+  - `Merchant internal API` = `/merchant/*` + session headers（本地 `8080`）
+  - `App-facing facade URL` = `${Merchant Project URL}/app/v1/*`（App 唯一正式入口）
+- Future functions checklist 中必须要求：禁止复用 merchant staff session、禁止把 Portal rewrite path 当成 App API、禁止使用不稳定内部主键/测试凭证作为产品级标识。
+
+## App-facing Vaccination 调用边界详解 (2026-03-27 MiniMax)
+
+### MerchantClinicSyncService 旧链路分析
+`VaccineBookingView.swift` 内 `MerchantClinicSyncService` actor 现状：
+```
+baseURL = "http://localhost:8090"
+sessionStorageKey = "petwell_testclinics_session_id"
+
+旧调用序列：
+1. loginForTestClinic()
+   → POST /api/merchant/auth/login
+   → body: { method:"email", email:"testclinics@petwell.com", password:"Clinic123456" }
+   → response: { session_id: "..." } → 存 UserDefaults
+
+2. bookedSlots(on:)
+   → GET /api/merchant/appointments
+   → header: X-Session-ID = <cached session>
+
+3. createTestClinicAppointment(payload)
+   → POST /api/merchant/appointments
+   → header: X-Session-ID = <cached session>
+   → body: { pet_id, doctor_id:"testclinics_frontdesk", scheduled_at, status, chief_complaint }
+```
+
+### 新旧对比：App-facing config model
+旧方案（Rejected）：
+- 硬编码 `localhost:8090`
+- 硬编码 clinic email/password
+- UserDefaults 存 merchant session_id
+- X-Session-ID header
+
+新方案（Target）：
+- `merchant_project_url`: "https://merchant.petwell.com/projects/testclinics-hk"
+- `merchant_public_app_key`: "pk_app_xxxxxxxxxxxx"
+- `clinic_integration_id`: "clinic_testclinics_hk"
+- 无 session 概念，App-key 做 project 级别鉴权
+
+### App-facing 4 个 Vaccination 端点边界
+| 端点 | 用途 | App 层如何调用 |
+|---|---|---|
+| `GET /app/v1/vaccinations/availability` | 查某诊所某日空位 | 直接 fetch，带 `X-Merchant-App-Key` header |
+| `POST /app/v1/vaccinations/bookings` | 创建预约 | 带 `Idempotency-Key` + `X-Merchant-App-Key` |
+| `GET /app/v1/vaccinations/bookings/:external_booking_id` | 查预约状态 | 直接 fetch，带 `X-Merchant-App-Key` |
+| `POST /app/v1/vaccinations/bookings/:external_booking_id/cancel` | 取消预约 | 带 `X-Merchant-App-Key` + reason body |
+
+### App 层禁止行为（App-facing 边界约束）
+1. ❌ 不存储/发送 merchant session
+2. ❌ 不直接调用 Portal URL (3500)
+3. ❌ 不直接调用 Merchant internal API (8080/merchant/*)
+4. ❌ 不使用旧 `doctor_id` / `pet_id=petName` 占位符
+5. ✅ 只用 clinic_integration_id 标识目标诊所
+6. ✅ 只用 external_booking_id 标识预约
+7. ✅ App-key 只控制 project 访问权限，不做用户身份认证
+
+## Backend Facade 设计技术发现（2026-03-27）
+
+### 已确认：facade 路由命名空间隔离
+- 当前 `backend/cmd/server/main.go` 的路由分为 `/merchant/*`（session auth）和自由路由
+- 新 facade 需要独立的 `r.Group("/app/v1")` 路由树，与 `/merchant/*` 完全解耦
+- 禁止在 `/app/v1` 路由树上挂载 `MerchantAuthMiddleware`（session-based），需新建 `AppKeyAuthMiddleware`
+
+### 已确认：AppKeyAuthMiddleware 行为
+```
+读取 X-Merchant-App-Key header
+    │
+    ▼
+MerchantAppKey 表（KeyPrefix + KeyHash 匹配）
+    │
+    ▼
+验证 MerchantAppKey.Status == "active" && MerchantProject.Status == "active"
+    │
+    ▼
+解析出 TenantID 注入 gin.Context（但不等于 merchant session）
+```
+
+### 已确认：clinic_integration_id 解析路径（clinic_appointments 落库前）
+```
+请求携带 clinic_integration_id
+         │
+         ▼
+ClinicIntegrationBinding 表（ClinicIntegrationID 唯一索引）
+         │
+    ─────┼──────
+    │         │
+    ▼         ▼
+TenantID   DefaultDoctorID（可选，为 nil 时需路由规则）
+    │
+    ▼
+Tenant 表 ──▶ merchant_users 表（role=doctor）+ frontdesk 路由
+```
+
+### 已确认：VaccinationBookingFacade + ClinicAppointment 双重写入事务
+- 必须在同一 `db.Transaction` 内完成，防止 App 侧拿到 `external_booking_id` 但 merchant 侧无记录
+- `VaccinationBookingFacade.InternalAppointmentID` 为 nullable uint，写入时填充
+- `VaccinationBookingFacade.RawRequestJSON` 存储原始请求 JSON，用于 debug 和审计
+
+### 已确认：Portal 可见性实现方式
+- `GET /merchant/clinic/appointments` 按 `tenant_id` + `date` 过滤，已存在的列表/矩阵视图无需改动
+- facade 创建的 ClinicAppointment 以 `pending` 状态进入流程，Portal 看到的预约状态与 staff 操作的业务状态一致
+- VaccinationBookingFacade 是 App 侧额外元数据，Portal 不感知；两表通过 `InternalAppointmentID` 形成只读追溯链
+
+### 已确认：facade 接口与现有 ClinicAppointment 字段的映射规则
+| App 请求字段 | ClinicAppointment 写入字段 | 备注 |
+|---|---|---|
+| `pet.name` | `PetName` | 直接映射 |
+| `owner.name` | `PetOwnerName` | 字段语义转换 |
+| `owner.phone` | `PetOwnerPhone` | 直接映射 |
+| `vaccine_code` | `VisitType = "vaccination:"+code` | 前缀编码，便于 Portal 识别类型 |
+| `scheduled_at` | `ScheduledAt` | 直接映射，UTC 存储 |
+| `notes` | `Notes` | 直接映射 |
+| `clinic_integration_id` → `TenantID` | `TenantID` | 间接映射 |
+| resolved doctor | `DoctorID` | 来自 binding.DefaultDoctorID 或 frontdesk 路由 |
+
+### 已确认：facade 接口与 VaccinationBookingFacade 字段的映射规则
+| App 请求字段 | VaccinationBookingFacade 写入字段 | 备注 |
+|---|---|---|
+| `pet.id` | `PetID` | App 侧宠物 ID，Merchant 内部不感知 |
+| `pet.name` | `PetName` | 同上 |
+| `owner.name/phone/email` | `OwnerName/OwnerPhone/OwnerEmail` | App 侧联系人 |
+| `vaccine_code` | `VaccineCode` | 原始疫苗编码 |
+| `scheduled_at` | `ScheduledAt` | 同上 |
+| 生成 | `ExternalBookingID` | 格式：`vbk_{date}_{seq}` |
+| idempotency key | `IdempotencyKey` | 唯一索引，防止重复创建 |
+
+### 已确认：4个接口的 handler 职责
+1. **AvailabilityHandler**：验证 app-key + binding → 计算/查询 slots（可先 mock，基于 clinic hours）
+2. **CreateBookingHandler**：验证 app-key + binding → 解析 doctor → 双重写入 → 返回 external_booking_id
+3. **GetBookingHandler**：验证 app-key → 查 VaccinationBookingFacade → JOIN ClinicAppointment → 映射状态
+4. **CancelBookingHandler**：验证 app-key → 查 facade 记录 → 校验状态转移合法性 → 更新 ClinicAppointment + VaccinationBookingFacade
+
+### 已确认：当前 backend 无需改动，但需新建的文件清单
+- `backend/models/merchant_project.go`（MerchantProject + MerchantAppKey）
+- `backend/models/clinic_integration.go`（ClinicIntegrationBinding）
+- `backend/models/vaccination_booking_facade.go`（VaccinationBookingFacade）
+- `backend/middleware/app_key_auth.go`（AppKeyAuthMiddleware）
+- `backend/handlers/vaccination_facade.go`（4个 handler）
+- `backend/routes.go` 或 `main.go` 需挂载 `/app/v1` 路由树
+
+### 已知设计缺口（不影响本轮文档产出）
+- availability slots 的真实计算逻辑（需 clinic schedule 表 + doctor roster）
+- `DefaultDoctorID` 为 nil 时的 frontdesk 路由策略
+- vaccine_code 到 merchant 疫苗产品的 catalog mapping
+- `MerchantAppKey` 的 key 生成算法（建议 bcrypt/sha256 哈希存储）
+- `MerchantProject.ProjectCode` 的生成规则（需保证全局唯一）
