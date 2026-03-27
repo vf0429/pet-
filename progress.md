@@ -81,3 +81,16 @@
 - 已更新 `LEADER_PROMPT.md` 的当前任务，改为 Phase 4A / Vaccination / Merchant Service Facade 方向。
 - 已更新 `.gitignore` 排除 `frontend/tsconfig.tsbuildinfo` 与 `specs/.env.keys`，避免把构建产物和敏感文件推进基线。
 - 下一步：清理待提交文件、提交到 `phase-3`，然后推送远端。
+
+- 2026-03-27：收到新的明确约束，必须在本轮只完成 Vaccination revised integration planning，不再继续旧 Phase 4 实现扩散。
+- 已按要求重新读取：`task_plan.md`、`findings.md`、`progress.md`、`docs/phase4_briefing.md`、`docs/phase4_opencode_handoff.md`、`VaccineBookingView.swift`、`dev.sh`、`frontend/next.config.js`。
+- 已确认关键边界：
+  - Portal URL = `3500`
+  - Merchant internal/backend API = `8080/merchant/*`
+  - App-facing facade URL = `${Merchant Project URL}/app/v1/*`
+- 已完成文档产出：
+  - `docs/phase4a_vaccination_revised_integration_plan.md`
+  - `docs/phase4a_merchant_service_facade_contract.md`
+- 已在文档中补齐：目标架构、API 契约、错误码、GORM struct 草案、状态机、前端 route/store 草案、JSON 字段映射。
+- 当前阻塞已记录：缺少 project/app-key/binding/schema、缺少 facade 路由命名空间、缺少 clinic provisioning 细化。
+- 下一步建议：由 OpenCode 先落 backend facade skeleton 与 schema，再安排 App 迁移 `VaccineBookingView`，但本轮到此停止。

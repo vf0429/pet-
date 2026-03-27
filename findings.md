@@ -117,3 +117,19 @@
 - 用户已明确否定“App 直接连 Portal 端口”方案，并要求采用类似 Supabase 的方式：稳定 `Project URL + Public/App Key`。
 - 因此新的 OpenCode 起始任务不应继续围绕旧 Phase 4 realtime/sync_queue 实现，而应先完成 Vaccination 的 facade 化重规划与文档化。
 - `specs/.env.keys` 含真实密钥，不能进入 git 基线；已改为通过 `.gitignore` 排除。
+
+## Vaccination Contract Findings (2026-03-27)
+- `Portal URL`、`Merchant internal API`、`App-facing facade URL` 必须拆开定义：
+  - Portal URL = merchant staff browser UI（本地 3500）
+  - internal API = `/merchant/*` + `X-Session-ID` + `X-Business-Type`（本地 8080）
+  - facade URL = `${Merchant Project URL}/app/v1/*`（App 唯一正式入口）
+- 当前 Merchant internal API 明显是商家员工会话 API，不适合作为 consumer App contract：`middleware/auth.go` 强依赖 `X-Session-ID`、`X-Business-Type`、tenant/user session。
+- 当前 Merchant clinic 数据主表 `clinic_appointments` 可承接 Vaccination booking 的 Portal 可见性，但它缺少外部 booking identity 与 project/key/binding 元数据；因此必须补充 facade 支撑表，而不是让 App 直接复用 merchant session 模型。
+- 旧 App bridge 中 `doctor_id = "testclinics_frontdesk"` 与 `pet_id = petName` 都是测试态占位，不可直接升级为正式合同字段；正式合同必须改为 `clinic_integration_id`、`external_booking_id`、`pet.id` 等稳定标识。
+- 已建议首期 facade 只暴露 3 个核心读写能力：availability、create booking、get booking status；这样既满足 Vaccination，又避免扩散到其他 Merchant 功能。
+
+## 当前阻塞/风险（Vaccination）
+- 仓库中尚无 `MerchantProject` / `MerchantAppKey` / `ClinicIntegrationBinding` / `VaccinationBookingFacade` 表与模型，OpenCode 落地前需先建 schema。
+- 仓库中尚无 `/app/v1/*` 路由命名空间；若直接复用 `/merchant/*` 会再次回到旧的会话式设计。
+- 目前未见稳定的 clinic project provisioning 流程，因此 `Merchant Project URL` 与 `Merchant Public/App Key` 的签发/轮换仍需 backend 进一步细化。
+- 当前 App 侧只有一个旧 Swift 文件可见；本轮可以完成 Vaccination 文档重规划，但不能替代完整 App 迁移实施验证。
