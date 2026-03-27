@@ -17,3 +17,6 @@ petwell.db
 
 # opencode logs
 .opencode/sessions/
+
+frontend/tsconfig.tsbuildinfo
+specs/.env.keys
