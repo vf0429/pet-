@@ -1,10 +1,10 @@
 /**
  * API Client for PetWell Merchant Portal
- * Base path: /merchant
+ * Base path: /v1/merchant
  * All protected endpoints require X-Session-ID and X-Business-Type headers
  */
 
-const API_BASE_PATH = '/api/merchant'
+const API_BASE_PATH = '/api/v1/merchant'
 
 // Types
 export type BusinessType = 'shop' | 'clinic'
@@ -69,6 +69,12 @@ export interface ApiErrorDTO {
   request_id?: string
 }
 
+export interface ApiEnvelopeErrorDTO {
+  code: number
+  message: string
+  data?: unknown
+}
+
 // Internal error handling
 export class ApiError extends Error {
   constructor(
@@ -88,6 +94,17 @@ function isApiErrorDTO(obj: unknown): obj is ApiErrorDTO {
     obj !== null &&
     'error' in obj &&
     'message' in obj
+  )
+}
+
+function isApiEnvelopeErrorDTO(obj: unknown): obj is ApiEnvelopeErrorDTO {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    'code' in obj &&
+    typeof (obj as { code?: unknown }).code === 'number' &&
+    'message' in obj &&
+    typeof (obj as { message?: unknown }).message === 'string'
   )
 }
 
@@ -139,6 +156,9 @@ async function apiFetch<T>(
   if (!response.ok) {
     if (isApiErrorDTO(data)) {
       throw new ApiError(data.error, data.message, data.request_id)
+    }
+    if (isApiEnvelopeErrorDTO(data)) {
+      throw new ApiError(String(data.code), data.message)
     }
     throw new ApiError('internal_error', 'Unexpected server error')
   }
@@ -2037,4 +2057,513 @@ export async function uploadInsuranceClaimFile(
 
   const envelope = data as ApiEnvelopeDTO<InsuranceClaimFileDTO>
   return toInsuranceClaimFileVM(envelope.data)
+}
+
+// ============================================
+// Phase 4B: Realtime / Sync API Types and Functions
+// ============================================
+
+export interface SyncChannelVM {
+  pendingCount: number
+  failedCount: number
+  deadLetterCount: number
+  lastSyncedAt: string | null
+}
+
+export interface MerchantSyncStatusVM {
+  orders: SyncChannelVM
+  appointments: SyncChannelVM
+  medicalRecords: SyncChannelVM
+  push: {
+    consumerStatus: 'healthy' | 'degraded' | 'offline'
+    notificationsSentToday: number
+    lastSuccessAt: string | null
+  }
+  apiKey?: {
+    masked: string
+  } | null
+  generatedAt: string
+}
+
+export type ToastVariant =
+  | 'new_order'
+  | 'new_appointment'
+  | 'sync_failed'
+  | 'followup_overdue'
+  | 'medical_record_pushed'
+  | 'generic'
+
+export interface PendingTaskVM {
+  id: string
+  title: string
+  message: string
+  summary: string
+  level: 'info' | 'warning' | 'error'
+  dedupeKey: string
+  createdAt: string
+  toastVariant: ToastVariant
+  actionLabel?: string
+  actionHref?: string
+}
+
+interface MerchantSyncStatusDTO {
+  orders?: {
+    pending_count?: number
+    failed_count?: number
+    dead_letter_count?: number
+    last_synced_at?: string | null
+  }
+  appointments?: {
+    pending_count?: number
+    failed_count?: number
+    dead_letter_count?: number
+    last_synced_at?: string | null
+  }
+  medical_records?: {
+    pending_count?: number
+    failed_count?: number
+    dead_letter_count?: number
+    last_synced_at?: string | null
+  }
+  push?: {
+    consumer_status?: 'healthy' | 'degraded' | 'offline'
+    notifications_sent_today?: number
+    last_success_at?: string | null
+  }
+  api_key?: {
+    masked?: string
+  } | null
+  generated_at?: string
+}
+
+/**
+ * Backend minimal PendingTask DTO (snake_case).
+ * Backend returns: type, entity_id, payload, created_at
+ * This is the raw shape used by GET /pending-tasks.
+ */
+interface PendingTaskBackendDTO {
+  type: string
+  entity_id: string
+  payload: string   // JSON string
+  created_at: string
+}
+
+function toSyncChannelVM(dto?: {
+  pending_count?: number
+  failed_count?: number
+  dead_letter_count?: number
+  last_synced_at?: string | null
+}): SyncChannelVM {
+  return {
+    pendingCount: dto?.pending_count ?? 0,
+    failedCount: dto?.failed_count ?? 0,
+    deadLetterCount: dto?.dead_letter_count ?? 0,
+    lastSyncedAt: dto?.last_synced_at ?? null,
+  }
+}
+
+/**
+ * Derive rich PendingTaskVM fields from backend minimal DTO.
+ * type + payload are the two sources of truth; all other fields are derived.
+ */
+function toPendingTaskVM(dto: PendingTaskBackendDTO): PendingTaskVM {
+  const type = dto.type
+  const entityId = dto.entity_id
+  const createdAt = dto.created_at
+
+  // Parse payload JSON if present
+  let payloadObj: Record<string, unknown> = {}
+  if (dto.payload) {
+    try {
+      payloadObj = JSON.parse(dto.payload) as Record<string, unknown>
+    } catch {
+      // use empty object on parse failure
+    }
+  }
+
+  // Derive dedupeKey from type + entity_id (stable, unique per task)
+  const dedupeKey = `${type}:${entityId}`
+
+  // Derive toastVariant from type
+  const toastVariant: ToastVariant = (() => {
+    switch (type) {
+      case 'new_order':         return 'new_order'
+      case 'new_appointment':    return 'new_appointment'
+      case 'sync_failed':        return 'sync_failed'
+      case 'followup_overdue':   return 'followup_overdue'
+      case 'medical_record_pushed': return 'medical_record_pushed'
+      default:                  return 'generic'
+    }
+  })()
+
+  // Derive level from type or payload
+  const level: 'info' | 'warning' | 'error' = (() => {
+    if (type === 'sync_failed') return 'error'
+    if (type === 'followup_overdue') return 'warning'
+    if (type === 'medical_record_pushed') return 'info'
+    if (type === 'new_order' || type === 'new_appointment') return 'info'
+    return 'info'
+  })()
+
+  // Derive title and summary from type + payload fields
+  const title = (() => {
+    switch (type) {
+      case 'new_order':
+        return '新订单'
+      case 'new_appointment':
+        return '新预约'
+      case 'sync_failed':
+        return '同步失败'
+      case 'followup_overdue':
+        return '待回访'
+      case 'medical_record_pushed':
+        return '病历已推送'
+      default:
+        return '新通知'
+    }
+  })()
+
+  const summary = (() => {
+    switch (type) {
+      case 'new_order': {
+        const orderNo = (payloadObj.order_no as string) ?? (payloadObj.orderNo as string) ?? entityId
+        return `订单 ${orderNo} 已创建`
+      }
+      case 'new_appointment': {
+        const petName = (payloadObj.pet_name as string) ?? (payloadObj.petName as string) ?? ''
+        return `预约 ${petName} 已创建`
+      }
+      case 'sync_failed': {
+        const errMsg = (payloadObj.error as string) ?? (payloadObj.message as string) ?? ''
+        return errMsg ? `同步失败: ${errMsg}` : '同步任务失败，请检查网络'
+      }
+      case 'followup_overdue': {
+        const petName = (payloadObj.pet_name as string) ?? (payloadObj.petName as string) ?? ''
+        return `宠物 ${petName} 回访逾期`
+      }
+      case 'medical_record_pushed': {
+        const petName = (payloadObj.pet_name as string) ?? (payloadObj.petName as string) ?? ''
+        return `宠物 ${petName} 病历已推送至 App`
+      }
+      default:
+        return payloadObj.message as string ?? payloadObj.summary as string ?? '您有新的待处理任务'
+    }
+  })()
+
+  const message = summary // message and summary are the same for our toast UI
+
+  return {
+    id: dedupeKey, // use dedupeKey as id for deduping in store
+    title,
+    message,
+    summary,
+    level,
+    dedupeKey,
+    createdAt,
+    toastVariant,
+    actionLabel: undefined,
+    actionHref: undefined,
+  }
+}
+
+export async function getMerchantSyncStatus(
+  businessType: BusinessType
+): Promise<MerchantSyncStatusVM> {
+  const response = await apiFetch<ApiEnvelopeDTO<MerchantSyncStatusDTO>>('/sync/status', {
+    method: 'GET',
+    headers: { 'X-Business-Type': businessType },
+  })
+
+  return {
+    orders: toSyncChannelVM(response.data.orders),
+    appointments: toSyncChannelVM(response.data.appointments),
+    medicalRecords: toSyncChannelVM(response.data.medical_records),
+    push: {
+      consumerStatus: response.data.push?.consumer_status ?? 'healthy',
+      notificationsSentToday: response.data.push?.notifications_sent_today ?? 0,
+      lastSuccessAt: response.data.push?.last_success_at ?? null,
+    },
+    apiKey: response.data.api_key?.masked ? { masked: response.data.api_key.masked } : null,
+    generatedAt: response.data.generated_at ?? new Date().toISOString(),
+  }
+}
+
+export async function getMerchantPendingTasks(params: {
+  cursor?: string | null
+  businessType: BusinessType
+}): Promise<{ tasks: PendingTaskVM[]; cursor: string | null }> {
+  const searchParams = new URLSearchParams()
+  if (params.cursor) searchParams.set('cursor', params.cursor)
+  const query = searchParams.toString()
+  const endpoint = `/pending-tasks${query ? `?${query}` : ''}`
+
+  const response = await apiFetch<ApiEnvelopeDTO<{ tasks?: PendingTaskBackendDTO[]; cursor?: string | null }>>(endpoint, {
+    method: 'GET',
+    headers: { 'X-Business-Type': params.businessType },
+  })
+
+  return {
+    tasks: (response.data.tasks ?? []).map(toPendingTaskVM),
+    cursor: response.data.cursor ?? null,
+  }
+}
+
+// ============================================
+// Phase 5: Analytics API Types and Functions
+// ============================================
+
+export type AnalyticsPeriod = '7d' | '30d' | 'custom'
+
+export interface AnalyticsPeriodDTO {
+  from: string
+  to: string
+}
+
+export interface ShopAnalyticsSummaryDTO {
+  total_revenue: number
+  total_orders: number
+  avg_order_value: number
+  repeat_purchase_rate: number
+}
+
+export interface ShopDailyRevenueDTO {
+  date: string
+  revenue: number
+  orders: number
+}
+
+export interface ShopCategoryBreakdownDTO {
+  category: string
+  revenue: number
+  pct: number
+}
+
+export interface ShopTopProductDTO {
+  name: string
+  sales: number
+  revenue: number
+}
+
+export interface ShopAnalyticsDTO {
+  period: AnalyticsPeriodDTO
+  summary: ShopAnalyticsSummaryDTO
+  daily_revenue: ShopDailyRevenueDTO[]
+  category_breakdown: ShopCategoryBreakdownDTO[]
+  top_products: ShopTopProductDTO[]
+}
+
+export interface ClinicAnalyticsSummaryDTO {
+  total_visits: number
+  avg_visit_duration_min: number | null
+  revisit_rate_30d: number
+  prescription_rate: number
+}
+
+export interface ClinicDailyVisitDTO {
+  date: string
+  visits: number
+}
+
+export interface ClinicDiagnosisBreakdownDTO {
+  name: string
+  count: number
+  pct: number
+}
+
+export interface ClinicDoctorWorkloadDTO {
+  doctor_name: string
+  [week: string]: number | string
+}
+
+export interface ClinicAppointmentAttendanceDTO {
+  date: string
+  confirmed: number
+  checked_in: number
+  rate: number
+}
+
+export interface ClinicAnalyticsDTO {
+  period: AnalyticsPeriodDTO
+  summary: ClinicAnalyticsSummaryDTO
+  daily_visits: ClinicDailyVisitDTO[]
+  diagnosis_breakdown: ClinicDiagnosisBreakdownDTO[]
+  doctor_workload: ClinicDoctorWorkloadDTO[]
+  appointment_attendance: ClinicAppointmentAttendanceDTO[]
+}
+
+export interface ShopAnalyticsSummaryVM {
+  totalRevenue: number
+  totalOrders: number
+  avgOrderValue: number
+  repeatPurchaseRate: number
+}
+
+export interface ShopDailyRevenueVM {
+  date: string
+  revenue: number
+  orders: number
+}
+
+export interface ShopCategoryBreakdownVM {
+  category: string
+  revenue: number
+  pct: number
+}
+
+export interface ShopTopProductVM {
+  name: string
+  sales: number
+  revenue: number
+}
+
+export interface ShopAnalyticsVM {
+  period: AnalyticsPeriodDTO
+  summary: ShopAnalyticsSummaryVM
+  dailyRevenue: ShopDailyRevenueVM[]
+  categoryBreakdown: ShopCategoryBreakdownVM[]
+  topProducts: ShopTopProductVM[]
+}
+
+export interface ClinicAnalyticsSummaryVM {
+  totalVisits: number
+  avgVisitDurationMin: number | null
+  revisitRate30d: number
+  prescriptionRate: number
+}
+
+export interface ClinicDailyVisitVM {
+  date: string
+  visits: number
+}
+
+export interface ClinicDiagnosisBreakdownVM {
+  name: string
+  count: number
+  pct: number
+}
+
+export interface ClinicDoctorWorkloadVM {
+  doctorName: string
+  [week: string]: number | string
+}
+
+export interface ClinicAppointmentAttendanceVM {
+  date: string
+  confirmed: number
+  checkedIn: number
+  rate: number
+}
+
+export interface ClinicAnalyticsVM {
+  period: AnalyticsPeriodDTO
+  summary: ClinicAnalyticsSummaryVM
+  dailyVisits: ClinicDailyVisitVM[]
+  diagnosisBreakdown: ClinicDiagnosisBreakdownVM[]
+  doctorWorkload: ClinicDoctorWorkloadVM[]
+  appointmentAttendance: ClinicAppointmentAttendanceVM[]
+}
+
+export interface GetAnalyticsParams {
+  period?: AnalyticsPeriod
+  dateFrom?: string
+  dateTo?: string
+}
+
+function unwrapAnalyticsResponse<T>(response: T | ApiEnvelopeDTO<T>): T {
+  if (
+    typeof response === 'object' &&
+    response !== null &&
+    'code' in response &&
+    'message' in response &&
+    'data' in response
+  ) {
+    return (response as ApiEnvelopeDTO<T>).data
+  }
+
+  return response as T
+}
+
+function buildAnalyticsQuery(params: GetAnalyticsParams = {}): string {
+  const searchParams = new URLSearchParams()
+
+  if (params.period) searchParams.set('period', params.period)
+  if (params.dateFrom) searchParams.set('date_from', params.dateFrom)
+  if (params.dateTo) searchParams.set('date_to', params.dateTo)
+
+  const query = searchParams.toString()
+  return query ? `?${query}` : ''
+}
+
+export function toShopAnalyticsVM(dto: ShopAnalyticsDTO): ShopAnalyticsVM {
+  return {
+    period: dto.period,
+    summary: {
+      totalRevenue: dto.summary.total_revenue,
+      totalOrders: dto.summary.total_orders,
+      avgOrderValue: dto.summary.avg_order_value,
+      repeatPurchaseRate: dto.summary.repeat_purchase_rate,
+    },
+    dailyRevenue: dto.daily_revenue,
+    categoryBreakdown: dto.category_breakdown,
+    topProducts: dto.top_products,
+  }
+}
+
+export function toClinicAnalyticsVM(dto: ClinicAnalyticsDTO): ClinicAnalyticsVM {
+  return {
+    period: dto.period,
+    summary: {
+      totalVisits: dto.summary.total_visits,
+      avgVisitDurationMin: dto.summary.avg_visit_duration_min,
+      revisitRate30d: dto.summary.revisit_rate_30d,
+      prescriptionRate: dto.summary.prescription_rate,
+    },
+    dailyVisits: dto.daily_visits,
+    diagnosisBreakdown: dto.diagnosis_breakdown,
+    doctorWorkload: dto.doctor_workload.map((item) => {
+      const { doctor_name, ...weeks } = item
+      return {
+        doctorName: doctor_name,
+        ...weeks,
+      }
+    }),
+    appointmentAttendance: dto.appointment_attendance.map((item) => ({
+      date: item.date,
+      confirmed: item.confirmed,
+      checkedIn: item.checked_in,
+      rate: item.rate,
+    })),
+  }
+}
+
+export async function getShopAnalytics(
+  params: GetAnalyticsParams = {}
+): Promise<ShopAnalyticsVM> {
+  const response = await apiFetch<ShopAnalyticsDTO | ApiEnvelopeDTO<ShopAnalyticsDTO>>(
+    `/analytics/shop${buildAnalyticsQuery(params)}`,
+    {
+      method: 'GET',
+      headers: {
+        'X-Business-Type': 'shop',
+      },
+    }
+  )
+
+  return toShopAnalyticsVM(unwrapAnalyticsResponse(response))
+}
+
+export async function getClinicAnalytics(
+  params: GetAnalyticsParams = {}
+): Promise<ClinicAnalyticsVM> {
+  const response = await apiFetch<ClinicAnalyticsDTO | ApiEnvelopeDTO<ClinicAnalyticsDTO>>(
+    `/analytics/clinic${buildAnalyticsQuery(params)}`,
+    {
+      method: 'GET',
+      headers: {
+        'X-Business-Type': 'clinic',
+      },
+    }
+  )
+
+  return toClinicAnalyticsVM(unwrapAnalyticsResponse(response))
 }

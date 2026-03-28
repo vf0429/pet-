@@ -3,8 +3,11 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { useShopDashboardStore } from '@/store/shop'
+import { useMerchantRealtimeStore } from '@/store/realtime'
+import { usePendingTasks } from '@/hooks/usePendingTasks'
 import KPICard from '@/components/KPICard'
 import StatusBadge from '@/components/StatusBadge'
+import SyncStatusCard from '@/components/SyncStatusCard'
 
 export default function ShopDashboardPage() {
   const {
@@ -19,6 +22,15 @@ export default function ShopDashboardPage() {
     alertsError,
     fetchDashboardData,
   } = useShopDashboardStore()
+
+  // Phase 4B: Start pending tasks polling and get sync status
+  const { syncStatus, isLoadingSyncStatus, fetchSyncStatus } = useMerchantRealtimeStore()
+  usePendingTasks('shop')
+  
+  // Fetch sync status on mount
+  useEffect(() => {
+    fetchSyncStatus('shop')
+  }, [fetchSyncStatus])
 
   useEffect(() => {
     fetchDashboardData()
@@ -273,20 +285,12 @@ export default function ShopDashboardPage() {
             )}
           </div>
 
-          {/* Mock Sync Status Card */}
-          <div className="relative mt-4 rounded-2xl border border-amber-200 bg-white p-5 shadow-sm">
-            <span className="absolute right-3 top-3 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600">
-              Mock
-            </span>
-            <h3 className="text-sm font-medium text-slate-500">App 同步状态</h3>
-            <div className="mt-3 flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span className="text-sm text-slate-700">同步正常</span>
-            </div>
-            <p className="mt-2 text-xs text-slate-400">
-              最近同步: 2 分钟前
-            </p>
-          </div>
+          {/* Real Sync Status Card */}
+          <SyncStatusCard
+            syncStatus={syncStatus}
+            isLoading={isLoadingSyncStatus}
+            businessType="shop"
+          />
         </div>
       </div>
     </div>

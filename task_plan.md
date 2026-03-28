@@ -129,3 +129,70 @@ ClinicIntegrationBinding表（唯一索引clinic_integration_id）
 3. vaccine_code → merchant 疫苗产品的 catalog mapping
 4. MerchantAppKey 的 key 生成/轮换/revoke 管理接口
 5. MerchantProject.ProjectCode 生成规则（全局唯一性保证）
+
+
+## Phase 4A Execution Plan (2026-03-27)
+- [in_progress] Leader: 将团队重组为 5 角色（Leader/Architect/Backend/Frontend/QA），并按 `specs/Phase4_App联调/Phase4A_Steps.md` 顺序执行
+- [pending] Step 1: Schema 扩展、AutoMigrate、Seed 数据
+- [pending] Step 2: AppKey 中间件、/app/v1 路由骨架、前端类型文件、QA 验证
+- [pending] Step 3: Facade 业务逻辑、前端 API/store
+- [pending] Step 4: Portal 状态同步、Playwright E2E、文档收尾
+- [pending] Mid-session sync: 完成关键阶段后回写 planning files
+
+- [completed] Step 1: Schema 扩展、AutoMigrate、Seed 数据
+- [in_progress] Step 2: AppKey 中间件、/app/v1 路由骨架、前端类型文件、QA 验证
+
+- [completed] Step 2: AppKey 中间件、/app/v1 路由骨架、前端类型文件、QA 验证
+- [in_progress] Step 3: Facade 业务逻辑、前端 API/store
+
+- [completed] Step 3: Facade 业务逻辑、前端 API/store
+- [completed] Step 4: Portal 状态同步、Playwright E2E、文档收尾
+- [completed] Mid-session sync: 完成关键阶段后回写 planning files
+
+## Phase 4B OpenClaw Dispatch Plan (2026-03-27)
+- [in_progress] Prepare 4 agent prompts for Phase4B and dispatch via OpenClaw
+- [pending] Backend agent: Step 1 + Step 2 backend implementation
+- [completed] Architect agent: Step 1 code review document
+- [completed] Backend follow-up from architect review: fix sync_consumer retry backoff, add panic recover, and add queue-consumer indexing
+- [pending] Frontend agent: Step 2 + Step 3 frontend implementation/alignment
+- [pending] QA agent: verification assets and validation summary
+
+## Phase 4B Step 1 Architect Review Summary (2026-03-27)
+- [completed] 已审查 `backend/jobs/sync_consumer.go` 与 `backend/models/app_sync_queue.go`
+- [completed] 已输出 `docs/phase4b_sync_consumer_review.md`
+- [completed] 确认 `ConsumeAppSyncQueue` 查询运行在事务之外
+- [issue] `next_retry_at` 退避实现与规范不符：当前首轮失败会退避 2min，而不是 30s
+- [issue] `dispatchTask` 当前 mock 无明显 panic 路径，但缺少 `recover`，未来接入真实推送 SDK 后有 goroutine 整体退出风险
+- [issue] `dead_letter` 批量标记是幂等的，但缺少贴合消费扫描条件的复合索引；同时没有多 consumer claim/lock 机制
+
+## Phase 4B Step 1 Backend Fixes Applied (2026-03-27)
+- [completed] Fix 1 — Retry backoff off-by-one: `calculateBackoff(task.RetryCount)` 直接用原值，第1次→30s, 第2次→2min, 第3次→10min
+- [completed] Fix 2 — Panic recover: `dispatchTask` 调用包在 `defer recover()` 内，panic 转 error 不打崩 goroutine
+- [completed] Fix 3 — Composite index: `idx_app_sync_queue_consumer_scan (status, retry_count, next_retry_at, created_at)` 已补充
+- [completed] `go build ./...` 零报错
+
+- [completed] Backend agent: Step 1 + Step 2 backend implementation
+- [completed] Frontend agent: Step 2 + Step 3 frontend implementation/alignment
+- [completed] QA agent: verification assets and validation summary
+- [completed] Frontend agent: Phase4B contract drift fixes (X-Business-Type not hardcoded, pending-tasks DTO aligned to backend minimum)
+- [completed] Phase4B final stabilization: `tests/phase4/phase4_p0.spec.ts` legal/illegal transition coverage no longer hard-depends on `paid -> prepare` seed data; full Playwright suite now green
+
+
+## Phase 5 Analytics Execution Plan (2026-03-28)
+- [completed] Leader: 读取 `specs/Phase5_数据分析/Phase5_Steps.md` 与 `Phase5_详细计划.md`，准备新的 OpenCode agent team 分发
+- [completed] MiniMax provider 基线切到 `https://api.minimaxi.com/anthropic/v1`，backend/frontend agent model 切到 `minimax/MiniMax-M2.5`
+- [completed] Architect: Step 1 performance review → `docs/phase5_performance_review.md`（Risk Level: Medium）
+- [completed] Backend: Step 1 数据基础准备 + Step 2 Shop Analytics API + Step 3 Clinic Analytics API
+- [completed] Frontend: Step 4 Analytics UI + Recharts
+- [completed] QA: Phase 5 verification docs + Playwright assets
+- [completed] Phase 5 全部完成：`npm run build` 通过，两个 Analytics 页面已编译
+
+## Phase 5 QA Verification Asset Plan (2026-03-28)
+- [completed] 读取并同步 `task_plan.md` / `findings.md` / `progress.md`
+- [completed] 读取 `specs/Phase5_数据分析/Phase5_Steps.md` / `Phase5_详细计划.md`
+- [issue] `docs/phase5_performance_review.md` 不存在，性能审核结论缺失
+- [completed] 生成 `docs/phase5_shop_analytics_verification.md`
+- [completed] 生成 `docs/phase5_clinic_analytics_verification.md`
+- [completed] 生成 `tests/phase5/phase5_p0.spec.ts`
+- [completed] 生成 `docs/phase5_test_report.md` 骨架
+- [issue] 当前仓库未发现 analytics backend/frontend 实现文件，QA 资产暂处 prepared/not executed 状态

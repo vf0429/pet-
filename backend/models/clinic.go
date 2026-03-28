@@ -52,6 +52,7 @@ type ClinicAppointment struct {
 	Status        ClinicAppointmentStatus `gorm:"size:24;not null;index:idx_clinic_appt_tenant_status,priority:2" json:"status"`
 	CancelReason  string                  `gorm:"size:255" json:"cancel_reason"`
 	Notes         string                  `gorm:"type:text" json:"notes"`
+	Source        string                  `gorm:"size:16;not null;default:'manual'" json:"source"`
 	CreatedAt     time.Time               `json:"created_at"`
 	UpdatedAt     time.Time               `json:"updated_at"`
 
@@ -116,6 +117,7 @@ type ClinicVisit struct {
 	GeneralMedicationNotes string            `gorm:"type:text" json:"general_medication_notes"`
 	Status                 ClinicVisitStatus `gorm:"size:24;not null;index:idx_clinic_visits_tenant_status,priority:2" json:"status"`
 	PushedAt               *time.Time        `json:"pushed_at"`
+	ClosedAt               *time.Time        `gorm:"index" json:"closed_at"`
 	CreatedAt              time.Time         `json:"created_at"`
 	UpdatedAt              time.Time         `json:"updated_at"`
 

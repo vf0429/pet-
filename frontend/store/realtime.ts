@@ -7,6 +7,7 @@ import {
   getMerchantSyncStatus,
   getMerchantPendingTasks,
   ApiError,
+  BusinessType,
 } from '@/lib/api'
 
 // Deduplication window in milliseconds (30 seconds as per Phase 4 contract)
@@ -34,8 +35,8 @@ interface MerchantRealtimeState {
   recentlyShownKeys: Map<string, number>
 
   // Actions
-  fetchSyncStatus: () => Promise<void>
-  fetchPendingTasks: () => Promise<void>
+  fetchSyncStatus: (businessType: BusinessType) => Promise<void>
+  fetchPendingTasks: (businessType: BusinessType) => Promise<void>
   enqueueToasts: (tasks: PendingTaskVM[]) => void
   dismissToast: (id: string) => void
   clearTransientTasks: () => void
@@ -55,10 +56,10 @@ export const useMerchantRealtimeStore = create<MerchantRealtimeState>((set, get)
   activeToasts: [],
   recentlyShownKeys: new Map(),
 
-  fetchSyncStatus: async () => {
+  fetchSyncStatus: async (businessType: BusinessType) => {
     set({ isLoadingSyncStatus: true, syncStatusError: null })
     try {
-      const status = await getMerchantSyncStatus()
+      const status = await getMerchantSyncStatus(businessType)
       set({ syncStatus: status, isLoadingSyncStatus: false })
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'Failed to load sync status'
@@ -66,7 +67,7 @@ export const useMerchantRealtimeStore = create<MerchantRealtimeState>((set, get)
     }
   },
 
-  fetchPendingTasks: async () => {
+  fetchPendingTasks: async (businessType: BusinessType) => {
     const { lastCursor, recentlyShownKeys } = get()
     const now = Date.now()
 
@@ -81,7 +82,7 @@ export const useMerchantRealtimeStore = create<MerchantRealtimeState>((set, get)
 
     set({ isPollingTasks: true, pollingError: null })
     try {
-      const response = await getMerchantPendingTasks({ cursor: lastCursor })
+      const response = await getMerchantPendingTasks({ cursor: lastCursor, businessType })
 
       // Deduplicate: filter out tasks whose dedupe_key is in the recent window
       const newTasks = response.tasks.filter((task) => {

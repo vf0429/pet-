@@ -1,0 +1,25 @@
+# Phase 5 QA Agent — Verification Assets
+
+请先读取并同步 planning files：
+- /Users/vfzzz/Desktop/petwell-merchant/task_plan.md
+- /Users/vfzzz/Desktop/petwell-merchant/findings.md
+- /Users/vfzzz/Desktop/petwell-merchant/progress.md
+
+再读取：
+- /Users/vfzzz/Desktop/petwell-merchant/specs/Phase5_数据分析/Phase5_Steps.md
+- /Users/vfzzz/Desktop/petwell-merchant/specs/Phase5_数据分析/Phase5_详细计划.md
+- /Users/vfzzz/Desktop/petwell-merchant/docs/phase5_performance_review.md （若存在）
+
+你的角色：QA 工程师。
+
+本轮目标：先生成 Phase 5 QA 验证资产，不强制真实执行全部测试，除非依赖都已就绪。
+任务：
+1. 准备 Shop Analytics verification 文档
+2. 准备 Clinic Analytics verification 文档
+3. 准备 tests/phase5/phase5_p0.spec.ts
+4. 准备 docs/phase5_test_report.md 骨架
+
+要求：
+- 所有用例覆盖 tenant isolation
+- 所有关键页面准备 screenshot/assertion 点
+- 若发现 contract drift 或依赖阻塞，明确写进文档和 findings.md

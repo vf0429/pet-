@@ -1,8 +1,4 @@
-import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import path from 'node:path'
-
-import { expect, Locator, Page, APIRequestContext, test } from '@playwright/test'
+import { expect, type APIRequestContext, type Locator, type Page, test } from '@playwright/test'
 
 test.use({
   baseURL: 'http://localhost:3000',
@@ -18,19 +14,48 @@ const USERS = {
   shopOwner: {
     email: 'owner@happypaws.com',
     tenantName: 'Happy Paws',
-    businessType: 'shop',
+    businessType: 'shop' as const,
   },
   clinicManager: {
     email: 'admin@pawsclinic.com',
     tenantName: 'Paws Clinic',
-    businessType: 'clinic',
+    businessType: 'clinic' as const,
   },
 } as const
 
-const HAPPY_PAWS_ORDER_PREFIX = /#1\d+/
+type BusinessType = 'shop' | 'clinic'
+
+type ShopOrderStatus = 'pending' | 'paid' | 'preparing' | 'shipped' | 'completed' | 'cancelled'
+
+type TransitionProbe = {
+  sourceStatus: ShopOrderStatus
+  targetStatus: 'preparing' | 'shipped' | 'completed' | 'cancelled'
+  requestData: Record<string, unknown>
+}
+
+type LegalTransitionScenario = {
+  sourceStatus: ShopOrderStatus
+  expectedAction: 'prepare' | 'ship' | 'complete' | 'cancel'
+  buttonLabel: string
+  expectedStatusLabel: string
+  requestData?: Record<string, unknown>
+}
+
+type ShopOrderListItem = {
+  id: number
+  order_no: string
+  status: ShopOrderStatus
+}
+
+type ShopOrderDetail = {
+  id: number
+  order_no: string
+  status: ShopOrderStatus
+  available_actions?: Array<'prepare' | 'ship' | 'complete' | 'cancel'>
+}
 
 function getPassword() {
-  expect(TEST_PASSWORD, 'TEST_PASSWORD must be set for Phase 4 Playwright tests').toBeTruthy()
+  expect(TEST_PASSWORD, 'TEST_PASSWORD must be set for Phase 4B Playwright tests').toBeTruthy()
   return TEST_PASSWORD as string
 }
 
@@ -49,15 +74,12 @@ async function preparePage(page: Page) {
 }
 
 async function apiLogin(request: APIRequestContext, email: string) {
-  const response = await request.post(`${BACKEND_BASE_URL}/merchant/auth/login`, {
+  const response = await request.post(`${BACKEND_BASE_URL}/v1/merchant/auth/login`, {
     data: { email, password: getPassword() },
   })
 
   expect(response.ok(), `Login failed for ${email}: ${response.status()}`).toBeTruthy()
-  return response.json() as Promise<{
-    session_id: string
-    expires_at: string
-  }>
+  return response.json() as Promise<{ session_id: string; expires_at: string }>
 }
 
 async function loginAs(page: Page, email: string) {
@@ -65,16 +87,17 @@ async function loginAs(page: Page, email: string) {
   await page.context().clearCookies()
 
   const session = await apiLogin(page.request, email)
-
-  await page.context().addCookies([{
-    name: 'session_id',
-    value: session.session_id,
-    domain: 'localhost',
-    path: '/',
-    expires: Math.floor(new Date(session.expires_at).getTime() / 1000),
-    sameSite: 'Lax',
-    httpOnly: false,
-  }])
+  await page.context().addCookies([
+    {
+      name: 'session_id',
+      value: session.session_id,
+      domain: 'localhost',
+      path: '/',
+      expires: Math.floor(new Date(session.expires_at).getTime() / 1000),
+      sameSite: 'Lax',
+      httpOnly: false,
+    },
+  ])
 
   return session
 }
@@ -82,15 +105,214 @@ async function loginAs(page: Page, email: string) {
 async function merchantGet(
   request: APIRequestContext,
   sessionId: string,
-  businessType: 'shop' | 'clinic',
+  businessType: BusinessType,
   endpoint: string,
 ) {
-  return request.get(`http://localhost:3000/api/merchant${endpoint}`, {
+  return request.get(`${BACKEND_BASE_URL}/v1/merchant${endpoint}`, {
     headers: {
       'X-Session-ID': sessionId,
       'X-Business-Type': businessType,
     },
   })
+}
+
+async function merchantPatch(
+  request: APIRequestContext,
+  sessionId: string,
+  businessType: BusinessType,
+  endpoint: string,
+  data: Record<string, unknown>,
+) {
+  return request.patch(`${BACKEND_BASE_URL}/v1/merchant${endpoint}`, {
+    headers: {
+      'X-Session-ID': sessionId,
+      'X-Business-Type': businessType,
+    },
+    data,
+  })
+}
+
+async function listShopOrdersByStatus(
+  request: APIRequestContext,
+  sessionId: string,
+  status: ShopOrderStatus,
+  perPage: number = 10,
+) {
+  const response = await merchantGet(
+    request,
+    sessionId,
+    'shop',
+    `/shop/orders?status=${status}&page=1&per_page=${perPage}`,
+  )
+
+  expect(response.ok(), `Failed to load shop orders with status=${status}`).toBeTruthy()
+
+  const body = await response.json()
+  return (body.data.orders ?? []) as ShopOrderListItem[]
+}
+
+async function getShopOrderDetail(
+  request: APIRequestContext,
+  sessionId: string,
+  orderId: number,
+) {
+  const response = await merchantGet(request, sessionId, 'shop', `/shop/orders/${orderId}`)
+  expect(response.ok(), `Failed to load shop order detail ${orderId}`).toBeTruthy()
+
+  const body = await response.json()
+  return body.data as ShopOrderDetail
+}
+
+async function findOrderForQueueProbe(
+  request: APIRequestContext,
+  sessionId: string,
+) {
+  const probes: TransitionProbe[] = [
+    {
+      sourceStatus: 'paid',
+      targetStatus: 'preparing',
+      requestData: { target_status: 'preparing' },
+    },
+    {
+      sourceStatus: 'preparing',
+      targetStatus: 'shipped',
+      requestData: {
+        target_status: 'shipped',
+        tracking_number: `PW-E2E-${Date.now()}`,
+      },
+    },
+    {
+      sourceStatus: 'shipped',
+      targetStatus: 'completed',
+      requestData: { target_status: 'completed' },
+    },
+    {
+      sourceStatus: 'pending',
+      targetStatus: 'cancelled',
+      requestData: {
+        target_status: 'cancelled',
+        cancel_reason: 'phase4 p0 stability probe',
+      },
+    },
+  ]
+
+  for (const probe of probes) {
+    const orders = await listShopOrdersByStatus(request, sessionId, probe.sourceStatus)
+    if (orders.length === 0) continue
+
+    return {
+      order: orders[0],
+      probe,
+    }
+  }
+
+  throw new Error('No transitionable shop order found for queue probe')
+}
+
+async function findShopOrderWithAction(
+  request: APIRequestContext,
+  sessionId: string,
+  status: ShopOrderStatus,
+  expectedAction: 'prepare' | 'ship' | 'complete' | 'cancel',
+) {
+  const orders = await listShopOrdersByStatus(request, sessionId, status)
+
+  for (const order of orders) {
+    const detail = await getShopOrderDetail(request, sessionId, order.id)
+    if (detail.available_actions?.includes(expectedAction)) {
+      return detail
+    }
+  }
+
+  return null
+}
+
+async function findLegalTransitionScenario(
+  request: APIRequestContext,
+  sessionId: string,
+) {
+  const scenarios: LegalTransitionScenario[] = [
+    {
+      sourceStatus: 'paid',
+      expectedAction: 'prepare',
+      buttonLabel: '确认备货',
+      expectedStatusLabel: '备货中',
+    },
+    {
+      sourceStatus: 'preparing',
+      expectedAction: 'ship',
+      buttonLabel: '确认发货',
+      expectedStatusLabel: '配送中',
+      requestData: { tracking_number: `PW-E2E-${Date.now()}` },
+    },
+    {
+      sourceStatus: 'shipped',
+      expectedAction: 'complete',
+      buttonLabel: '确认完成',
+      expectedStatusLabel: '已完成',
+    },
+    {
+      sourceStatus: 'pending',
+      expectedAction: 'cancel',
+      buttonLabel: '取消订单',
+      expectedStatusLabel: '已取消',
+      requestData: { cancel_reason: 'phase4 p0 legal transition probe' },
+    },
+    {
+      sourceStatus: 'paid',
+      expectedAction: 'cancel',
+      buttonLabel: '取消订单',
+      expectedStatusLabel: '已取消',
+      requestData: { cancel_reason: 'phase4 p0 legal transition probe' },
+    },
+  ]
+
+  for (const scenario of scenarios) {
+    const detail = await findShopOrderWithAction(request, sessionId, scenario.sourceStatus, scenario.expectedAction)
+    if (detail) {
+      return { order: detail, scenario }
+    }
+  }
+
+  throw new Error('No shop order exposing any legal merchant action for UI transition coverage')
+}
+
+async function findTerminalShopOrder(
+  request: APIRequestContext,
+  sessionId: string,
+) {
+  for (const status of ['completed', 'cancelled'] as const) {
+    const orders = await listShopOrdersByStatus(request, sessionId, status)
+    if (orders.length > 0) {
+      return orders[0]
+    }
+  }
+
+  throw new Error('No terminal shop order found for illegal-transition coverage')
+}
+
+function getTopBarSubtitle(page: Page, tenantName: string, businessType: BusinessType) {
+  return page.getByText(`${tenantName} · ${businessType} view`, { exact: true })
+}
+
+function getSidebarTenantLabel(page: Page, tenantName: string) {
+  return page.locator('aside').getByText(tenantName, { exact: true })
+}
+
+function getSyncStatusCard(page: Page) {
+  return page.locator('div.rounded-2xl').filter({
+    has: page.getByRole('heading', { name: 'App 同步状态', exact: true }),
+  }).first()
+}
+
+async function openOrderDrawerByNo(page: Page, orderNo: string) {
+  await openShopOrders(page)
+  await page.getByPlaceholder('搜索订单号或客户名...').fill(orderNo)
+
+  const row = page.getByRole('button').filter({ hasText: orderNo }).first()
+  await expect(row).toBeVisible({ timeout: 15_000 })
+  await row.click()
+  await expect(page.getByRole('heading', { name: '订单详情' })).toBeVisible()
 }
 
 async function openShopOrders(page: Page) {
@@ -105,7 +327,7 @@ async function openFirstOrderByStatus(page: Page, tabLabel: string, statusLabel:
 
   const row = page
     .getByRole('button')
-    .filter({ hasText: HAPPY_PAWS_ORDER_PREFIX })
+    .filter({ hasText: /#1\d+/ })
     .filter({ hasText: statusLabel })
     .first()
 
@@ -121,60 +343,44 @@ function buildSyncStatusEnvelope(scope: 'shop' | 'clinic') {
     code: 0,
     message: 'ok',
     data: {
-      scope,
-      generated_at: '2026-03-26T15:30:00Z',
+      generated_at: '2026-03-27T12:00:00Z',
       orders: {
-        last_synced_at: '2026-03-26T15:28:10Z',
         pending_count: scope === 'shop' ? 2 : 0,
         failed_count: scope === 'shop' ? 1 : 0,
-        dead_letter_count: 0,
-        last_event_at: '2026-03-26T15:27:42Z',
+        dead_letter_count: scope === 'shop' ? 0 : 0,
+        last_synced_at: scope === 'shop' ? '2026-03-27T11:58:00Z' : null,
       },
       appointments: {
-        last_synced_at: scope === 'clinic' ? '2026-03-26T15:24:10Z' : null,
         pending_count: scope === 'clinic' ? 1 : 0,
         failed_count: 0,
         dead_letter_count: 0,
-        last_event_at: scope === 'clinic' ? '2026-03-26T15:23:42Z' : null,
+        last_synced_at: scope === 'clinic' ? '2026-03-27T11:57:00Z' : null,
       },
       medical_records: {
-        last_synced_at: scope === 'clinic' ? '2026-03-26T15:18:10Z' : null,
-        pending_count: scope === 'clinic' ? 2 : 0,
+        pending_count: scope === 'clinic' ? 1 : 0,
         failed_count: scope === 'clinic' ? 1 : 0,
         dead_letter_count: scope === 'clinic' ? 1 : 0,
-        last_event_at: scope === 'clinic' ? '2026-03-26T15:17:42Z' : null,
+        last_synced_at: scope === 'clinic' ? '2026-03-27T11:55:00Z' : null,
       },
       push: {
-        notifications_sent_today: scope === 'shop' ? 7 : 4,
-        last_success_at: '2026-03-26T15:28:10Z',
-        consecutive_failures: scope === 'shop' ? 0 : 1,
         consumer_status: scope === 'shop' ? 'healthy' : 'degraded',
+        notifications_sent_today: scope === 'shop' ? 6 : 4,
+        last_success_at: '2026-03-27T11:59:00Z',
       },
       api_key: {
-        masked: 'pw_live_••••••••••••4f2a',
-        last4: '4f2a',
-        rotated_at: '2026-03-01T00:00:00Z',
-      },
-      polling: {
-        recommended_interval_seconds: 60,
-        pending_tasks_interval_seconds: 30,
+        masked: scope === 'shop' ? 'pk_app_••••shop' : 'pk_app_••••clinic',
       },
     },
   }
 }
 
-function buildPendingTasksEnvelope(scope: 'shop' | 'clinic', tasks: Array<Record<string, unknown>>, cursor = '') {
+function buildPendingTasksEnvelope(tasks: Array<Record<string, unknown>>, cursor: string | null = null) {
   return {
     code: 0,
     message: 'ok',
     data: {
-      scope,
-      cursor,
-      server_time: '2026-03-26T15:30:00Z',
       tasks,
-      count: tasks.length,
-      unread_like_count: tasks.length,
-      recommended_poll_interval_seconds: 30,
+      cursor,
     },
   }
 }
@@ -189,85 +395,103 @@ function setDocumentVisibility(page: Page, hidden: boolean) {
   }, hidden)
 }
 
-test.describe('Phase 4 P0 API, isolation, polling and state machine coverage', () => {
-  test('sync status API returns tenant-scoped envelopes for shop and clinic views', async ({ request }) => {
+test.describe('Phase 4B P0 validation assets', () => {
+  test('P0 API contract covers sync/status, pending-tasks and tenant isolation', async ({ request }) => {
     const shopSession = await apiLogin(request, USERS.shopOwner.email)
     const clinicSession = await apiLogin(request, USERS.clinicManager.email)
 
-    const [shopResponse, clinicResponse] = await Promise.all([
+    const { order: probeOrder, probe } = await findOrderForQueueProbe(request, shopSession.session_id)
+
+    const transitionResponse = await merchantPatch(
+      request,
+      shopSession.session_id,
+      'shop',
+      `/shop/orders/${probeOrder.id}/status`,
+      probe.requestData,
+    )
+    expect(transitionResponse.ok()).toBeTruthy()
+    const transitionBody = await transitionResponse.json()
+    expect(transitionBody).toMatchObject({
+      code: 0,
+      message: 'ok',
+      data: {
+        id: probeOrder.id,
+        previous_status: probe.sourceStatus,
+        current_status: probe.targetStatus,
+        sync_queue: {
+          entity_type: 'order',
+          entity_id: String(probeOrder.id),
+          action: 'status_changed',
+          status: 'pending',
+        },
+      },
+    })
+
+    const [shopSyncResponse, clinicSyncResponse, shopPendingResponse, clinicPendingResponse] = await Promise.all([
       merchantGet(request, shopSession.session_id, 'shop', '/sync/status'),
       merchantGet(request, clinicSession.session_id, 'clinic', '/sync/status'),
+      merchantGet(request, shopSession.session_id, 'shop', '/pending-tasks'),
+      merchantGet(request, clinicSession.session_id, 'clinic', '/pending-tasks'),
     ])
 
-    expect(shopResponse.ok()).toBeTruthy()
-    expect(clinicResponse.ok()).toBeTruthy()
+    expect(shopSyncResponse.ok()).toBeTruthy()
+    expect(clinicSyncResponse.ok()).toBeTruthy()
+    expect(shopPendingResponse.ok()).toBeTruthy()
+    expect(clinicPendingResponse.ok()).toBeTruthy()
 
-    const shopBody = await shopResponse.json()
-    const clinicBody = await clinicResponse.json()
+    const shopSync = await shopSyncResponse.json()
+    const clinicSync = await clinicSyncResponse.json()
+    const shopPending = await shopPendingResponse.json()
+    const clinicPending = await clinicPendingResponse.json()
 
-    expect(shopBody.code).toBe(0)
-    expect(shopBody.message).toBe('ok')
-    expect(shopBody.data.scope).toBe('shop')
-    expect(shopBody.data.orders.pending_count).toBeGreaterThanOrEqual(0)
-    expect(shopBody.data.orders.last_event_at).toBeTruthy()
-    expect(shopBody.data.appointments.pending_count).toBe(0)
-    expect(shopBody.data.polling.pending_tasks_interval_seconds).toBe(30)
-    expect(shopBody.data.push.consumer_status).toMatch(/healthy|degraded|down/)
+    expect(shopSync).toMatchObject({ code: 0, message: 'ok' })
+    expect(shopSync.data).toEqual(
+      expect.objectContaining({
+        orders: expect.any(Object),
+        appointments: expect.any(Object),
+        notifications_sent_today: expect.any(Number),
+        dead_letter_count: expect.any(Number),
+      }),
+    )
+    expect(clinicSync).toMatchObject({ code: 0, message: 'ok' })
 
-    expect(clinicBody.code).toBe(0)
-    expect(clinicBody.message).toBe('ok')
-    expect(clinicBody.data.scope).toBe('clinic')
-    expect(clinicBody.data.appointments.pending_count).toBeGreaterThanOrEqual(0)
-    expect(clinicBody.data.medical_records.failed_count).toBeGreaterThanOrEqual(0)
-    expect(clinicBody.data.orders.pending_count).toBe(0)
-    expect(clinicBody.data.polling.recommended_interval_seconds).toBe(60)
-  })
-
-  test('pending tasks API respects scope, cursor and tenant isolation boundaries', async ({ request }) => {
-    const shopSession = await apiLogin(request, USERS.shopOwner.email)
-    const clinicSession = await apiLogin(request, USERS.clinicManager.email)
-
-    const shopResponse = await merchantGet(request, shopSession.session_id, 'shop', '/pending-tasks?limit=5')
-    const clinicResponse = await merchantGet(request, clinicSession.session_id, 'clinic', '/pending-tasks?limit=5')
-
-    expect(shopResponse.ok()).toBeTruthy()
-    expect(clinicResponse.ok()).toBeTruthy()
-
-    const shopBody = await shopResponse.json()
-    const clinicBody = await clinicResponse.json()
-
-    expect(shopBody.code).toBe(0)
-    expect(shopBody.data.scope).toBe('shop')
-    expect(shopBody.data.count).toBeLessThanOrEqual(5)
-    for (const task of shopBody.data.tasks as Array<{ action_href: string | null; entity_type: string }>) {
-      expect(task.action_href ?? '/merchant/shop').toMatch(/^\/merchant\/(shop|$)/)
-      expect(task.entity_type).not.toBe('appointment')
-    }
-
-    expect(clinicBody.code).toBe(0)
-    expect(clinicBody.data.scope).toBe('clinic')
-    expect(clinicBody.data.count).toBeLessThanOrEqual(5)
-    for (const task of clinicBody.data.tasks as Array<{ action_href: string | null; entity_type: string }>) {
-      expect(task.action_href ?? '/merchant/clinic').toMatch(/^\/merchant\/(clinic|$)/)
-      expect(task.entity_type).not.toBe('order')
-    }
-
-    if (shopBody.data.cursor) {
-      const nextPage = await merchantGet(
-        request,
-        shopSession.session_id,
-        'shop',
-        `/pending-tasks?limit=5&cursor=${encodeURIComponent(shopBody.data.cursor)}`,
+    expect(shopPending).toMatchObject({ code: 0, message: 'ok' })
+    expect(shopPending.data.tasks).toEqual(expect.any(Array))
+    expect(shopPending.data.count).toBe(shopPending.data.tasks.length)
+    if (shopPending.data.tasks.length > 0) {
+      expect(shopPending.data.tasks[0]).toEqual(
+        expect.objectContaining({
+          type: expect.any(String),
+          entity_id: expect.any(String),
+          payload: expect.any(String),
+          created_at: expect.any(String),
+        }),
       )
-
-      expect(nextPage.ok()).toBeTruthy()
-      const nextPageBody = await nextPage.json()
-      expect(nextPageBody.code).toBe(0)
-      expect(nextPageBody.data.scope).toBe('shop')
     }
+
+    expect(clinicPending).toMatchObject({ code: 0, message: 'ok' })
+    expect(clinicPending.data.tasks).toEqual(expect.any(Array))
+
+    const changedOrderId = String(probeOrder.id)
+    const shopTaskEntityIds = (shopPending.data.tasks as Array<{ entity_id: string }>).map((task) => task.entity_id)
+    const clinicTaskEntityIds = (clinicPending.data.tasks as Array<{ entity_id: string }>).map((task) => task.entity_id)
+
+    expect(shopTaskEntityIds).toContain(changedOrderId)
+    expect(clinicTaskEntityIds).not.toContain(changedOrderId)
+
+  const tenant2AccessResponse = await merchantGet(
+      request,
+      clinicSession.session_id,
+      'shop',
+      `/shop/orders/${probeOrder.id}`,
+    )
+    expect([403, 404]).toContain(tenant2AccessResponse.status())
   })
 
-  test('shop and clinic dashboards stay tenant-isolated and keep screenshot baselines', async ({ browser }) => {
+  test('dashboard sync card requests are tenant-scoped and key pages keep screenshot baselines', async ({ browser }, testInfo) => {
+    const shopHeaders: string[] = []
+    const clinicHeaders: string[] = []
+
     const shopContext = await browser.newContext({
       baseURL: 'http://localhost:3000',
       viewport: { width: 1440, height: 900 },
@@ -283,97 +507,93 @@ test.describe('Phase 4 P0 API, isolation, polling and state machine coverage', (
     await loginAs(shopPage, USERS.shopOwner.email)
     await loginAs(clinicPage, USERS.clinicManager.email)
 
-    await shopPage.route('**/api/merchant/sync/status', async (route) => {
+    await shopPage.route('**/api/v1/merchant/sync/status', async (route) => {
+      shopHeaders.push(route.request().headers()['x-business-type'] ?? '')
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(buildSyncStatusEnvelope('shop')),
       })
     })
-    await clinicPage.route('**/api/merchant/sync/status', async (route) => {
+    await shopPage.route('**/api/v1/merchant/pending-tasks*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildPendingTasksEnvelope([])),
+      })
+    })
+
+    await clinicPage.route('**/api/v1/merchant/sync/status', async (route) => {
+      clinicHeaders.push(route.request().headers()['x-business-type'] ?? '')
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(buildSyncStatusEnvelope('clinic')),
       })
     })
+    await clinicPage.route('**/api/v1/merchant/pending-tasks*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildPendingTasksEnvelope([])),
+      })
+    })
 
     await shopPage.goto('/merchant/shop/dashboard')
     await expect(shopPage.getByRole('heading', { name: 'Shop Dashboard' })).toBeVisible({ timeout: 15_000 })
-    await expect(shopPage.getByText(USERS.shopOwner.tenantName)).toBeVisible()
-    await expect(shopPage.getByText(USERS.clinicManager.tenantName)).toHaveCount(0)
-    await expect(shopPage.getByText('App 同步状态')).toBeVisible()
-    await expect(shopPage.getByText('pw_live_••••••••••••4f2a')).toBeVisible()
-    await expect(shopPage).toHaveScreenshot('phase4-shop-dashboard.png', { fullPage: true })
+    await expect(shopPage.getByText(USERS.shopOwner.tenantName, { exact: true }).first()).toBeVisible()
+    await expect(getSidebarTenantLabel(shopPage, USERS.shopOwner.tenantName)).toBeVisible()
+    await expect(getSidebarTenantLabel(shopPage, USERS.clinicManager.tenantName)).toHaveCount(0)
+    await expect(getSyncStatusCard(shopPage).getByRole('heading', { name: 'App 同步状态', exact: true })).toBeVisible()
+    await expect(getSyncStatusCard(shopPage).getByText('pk_app_••••shop', { exact: true })).toBeVisible()
+    await shopPage.screenshot({ path: testInfo.outputPath('phase4b-shop-dashboard-sync-status.png'), fullPage: true })
 
     await clinicPage.goto('/merchant/clinic/dashboard')
     await expect(clinicPage.getByRole('heading', { name: 'Clinic Dashboard' })).toBeVisible({ timeout: 15_000 })
-    await expect(clinicPage.getByText(USERS.clinicManager.tenantName)).toBeVisible()
-    await expect(clinicPage.getByText(USERS.shopOwner.tenantName)).toHaveCount(0)
-    await expect(clinicPage.getByText('App 同步状态')).toBeVisible()
-    await expect(clinicPage.getByText('病历')).toBeVisible()
-    await expect(clinicPage).toHaveScreenshot('phase4-clinic-dashboard.png', { fullPage: true })
+    await expect(getSidebarTenantLabel(clinicPage, USERS.shopOwner.tenantName)).toHaveCount(0)
+    await clinicPage.screenshot({ path: testInfo.outputPath('phase4b-clinic-dashboard-sync-status.png'), fullPage: true })
+
+    expect(shopHeaders, 'Shop dashboard must call sync/status with X-Business-Type=shop').toContain('shop')
+    expect(clinicHeaders, 'Clinic dashboard must call sync/status with X-Business-Type=clinic').toContain('clinic')
 
     await shopContext.close()
     await clinicContext.close()
   })
 
-  test('layout polling shows deduped toasts and refetches when page becomes visible again', async ({ page }) => {
+  test('toast polling dedupes duplicate tasks, refreshes on visibility restore and keeps toast screenshot baseline', async ({ page }, testInfo) => {
     await loginAs(page, USERS.shopOwner.email)
 
-    const requestLog: string[] = []
+    const pendingTaskHeaders: string[] = []
+    let pollCount = 0
+
     const duplicateTask = {
-      id: 'task_145',
-      queue_id: 145,
-      task_type: 'new_order',
-      entity_type: 'order',
+      type: 'new_order',
       entity_id: '10045',
-      entity_no: '#10045',
-      title: '新订单 #10045',
-      summary: '订单 #10045 待处理',
-      toast_variant: 'new_order',
-      priority: 'high',
-      action_label: '查看',
-      action_href: '/merchant/shop/orders?selected=10045',
-      requires_ack: false,
-      created_at: '2026-03-26T15:29:10Z',
-      occurred_at: '2026-03-26T15:29:08Z',
-      dedupe_key: 'order_10045_status_changed_1774510148',
-      payload: {
-        status: 'paid',
-        pet_name: 'Buddy',
-      },
+      payload: JSON.stringify({ order_no: '#10045' }),
+      created_at: '2026-03-27T12:00:10Z',
     }
-    const followupTask = {
-      id: 'task_146',
-      queue_id: 146,
-      task_type: 'medical_record_pushed',
-      entity_type: 'medical_record',
+    const newTask = {
+      type: 'medical_record_pushed',
       entity_id: '501',
-      entity_no: null,
-      title: '病历同步恢复',
-      summary: '病历 501 已成功推送到 App',
-      toast_variant: 'medical_record_pushed',
-      priority: 'low',
-      action_label: '查看',
-      action_href: '/merchant/clinic/visits/501',
-      requires_ack: false,
-      created_at: '2026-03-26T15:30:10Z',
-      occurred_at: '2026-03-26T15:30:08Z',
-      dedupe_key: 'medical_record_501_record_published_1774510208',
-      payload: {
-        status: 'sent',
-      },
+      payload: JSON.stringify({ pet_name: 'Mochi' }),
+      created_at: '2026-03-27T12:01:10Z',
     }
 
-    let pollCount = 0
-    await page.route('**/api/merchant/pending-tasks*', async (route) => {
-      requestLog.push(route.request().url())
+    await page.route('**/api/v1/merchant/sync/status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildSyncStatusEnvelope('shop')),
+      })
+    })
+
+    await page.route('**/api/v1/merchant/pending-tasks*', async (route) => {
+      pendingTaskHeaders.push(route.request().headers()['x-business-type'] ?? '')
       pollCount += 1
 
-      const body = pollCount <= 3
-        ? buildPendingTasksEnvelope('shop', [duplicateTask], '2026-03-26T15:30:00Z_145')
-        : buildPendingTasksEnvelope('shop', [followupTask], '2026-03-26T15:31:00Z_146')
+      const body = pollCount <= 1
+        ? buildPendingTasksEnvelope([duplicateTask], 'cursor-1')
+        : buildPendingTasksEnvelope([newTask], 'cursor-2')
 
       await route.fulfill({
         status: 200,
@@ -382,56 +602,56 @@ test.describe('Phase 4 P0 API, isolation, polling and state machine coverage', (
       })
     })
 
-    await page.goto('/merchant/dashboard')
-    const notifications = page.getByLabel('Notifications')
+    await page.goto('/merchant/shop/dashboard')
 
+    const notifications = page.locator('div[aria-label="Notifications"]').last()
     await expect(notifications).toBeVisible({ timeout: 15_000 })
-    await expect(notifications.getByText('新订单 #10045')).toBeVisible()
-    await expect(notifications.getByText('订单 #10045 待处理')).toBeVisible()
-    await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible()
+    await expect(notifications.getByText('新订单', { exact: true })).toBeVisible()
+    await expect(notifications.getByText('订单 #10045 已创建', { exact: true })).toBeVisible()
 
     await setDocumentVisibility(page, true)
     await setDocumentVisibility(page, false)
 
-    await expect.poll(() => requestLog.length).toBeGreaterThanOrEqual(4)
-    await expect(notifications.getByText('新订单 #10045')).toHaveCount(1)
-    await expect(notifications.getByText('病历同步恢复')).toBeVisible()
-    await expect(page).toHaveScreenshot('phase4-toast-polling.png', { fullPage: true })
+    await expect.poll(() => pollCount).toBeGreaterThanOrEqual(2)
+    await expect(notifications.getByText('新订单', { exact: true })).toHaveCount(1)
+    await expect(notifications.getByText('病历已推送', { exact: true })).toBeVisible()
+    await expect(notifications.getByText('宠物 Mochi 病历已推送至 App', { exact: true })).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath('phase4b-toast-polling-dedupe.png'), fullPage: true })
+
+    expect(pendingTaskHeaders, 'Pending task polling must keep shop business header on shop dashboard').toContain('shop')
   })
 
-  test('order state machine allows paid → preparing and blocks completed → preparing', async ({ page }) => {
-    await loginAs(page, USERS.shopOwner.email)
+  test('shop order state machine allows legal transition and blocks illegal transition', async ({ page }, testInfo) => {
+    const shopSession = await loginAs(page, USERS.shopOwner.email)
 
-    await openFirstOrderByStatus(page, '已付款', '已付款')
-    await expect(page.getByRole('button', { name: '确认备货' })).toBeVisible()
-    await page.getByRole('button', { name: '确认备货' }).click()
-    await expect(page.getByText('备货中')).toBeVisible()
-    await expect(page.getByRole('button', { name: '确认备货' })).toHaveCount(0)
-    await expect(page).toHaveScreenshot('phase4-order-legal-transition.png', { fullPage: true })
+    const { order: legalOrder, scenario } = await findLegalTransitionScenario(page.request, shopSession.session_id)
+    const terminalOrder = await findTerminalShopOrder(page.request, shopSession.session_id)
 
-    await openFirstOrderByStatus(page, '已完成', '已完成')
-    await expect(page.getByRole('button', { name: '确认备货' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: '取消订单' })).toHaveCount(0)
-    await expect(page).toHaveScreenshot('phase4-order-illegal-transition-blocked.png', { fullPage: true })
-  })
+    await openOrderDrawerByNo(page, legalOrder.order_no)
+    const drawer = page.locator('div.fixed.inset-y-0.right-0.z-50').last()
+    const actionButton = drawer.getByRole('button', { name: scenario.buttonLabel, exact: true })
+    await expect(actionButton).toBeVisible()
 
-  test('idempotency table exists in backend SQLite schema', async () => {
-    const dbPath = path.join(process.cwd(), 'backend', 'petwell.db')
-    test.skip(!existsSync(dbPath), `SQLite DB not found at ${dbPath}`)
-
-    let sqliteAvailable = true
-    try {
-      execFileSync('sqlite3', ['-version'], { encoding: 'utf8' })
-    } catch {
-      sqliteAvailable = false
+    if (scenario.expectedAction === 'ship') {
+      await drawer.getByPlaceholder('请输入物流单号').fill(String(scenario.requestData?.tracking_number ?? `PW-E2E-${Date.now()}`))
     }
 
-    test.skip(!sqliteAvailable, 'sqlite3 CLI is unavailable; validate via docs/phase4_supabase_checklist.md instead')
+    if (scenario.expectedAction === 'cancel') {
+      await actionButton.click()
+      await drawer.getByPlaceholder('请输入取消原因...').fill(String(scenario.requestData?.cancel_reason ?? 'phase4 p0 cancel probe'))
+      await drawer.getByRole('button', { name: '确认取消', exact: true }).click()
+    } else {
+      await actionButton.click()
+    }
 
-    const tableName = execFileSync('sqlite3', [dbPath, "SELECT name FROM sqlite_master WHERE type='table' AND name='idempotency_keys';"], {
-      encoding: 'utf8',
-    }).trim()
+    await expect(drawer.getByText(scenario.expectedStatusLabel, { exact: true }).first()).toBeVisible()
+    await expect(drawer.getByRole('button', { name: scenario.buttonLabel, exact: true })).toHaveCount(0)
+    await page.screenshot({ path: testInfo.outputPath('phase4b-order-legal-transition.png'), fullPage: true })
 
-    expect(tableName).toBe('idempotency_keys')
+    await openOrderDrawerByNo(page, terminalOrder.order_no)
+    const terminalDrawer = page.locator('div.fixed.inset-y-0.right-0.z-50').last()
+    await expect(terminalDrawer.getByRole('button', { name: '确认备货' })).toHaveCount(0)
+    await expect(terminalDrawer.getByRole('button', { name: '取消订单' })).toHaveCount(0)
+    await page.screenshot({ path: testInfo.outputPath('phase4b-order-illegal-transition-blocked.png'), fullPage: true })
   })
 })

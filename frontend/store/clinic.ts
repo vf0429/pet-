@@ -419,6 +419,7 @@ interface ClinicPharmacyState {
   dispense: (id: number, quantity: number, prescriptionId?: number, note?: string) => Promise<void>
   setFilters: (filters: Partial<ClinicPharmacyState['filters']>) => void
   setPage: (page: number) => void
+  clearDispenseError: () => void
   clearPharmacy: () => void
 }
 
@@ -485,8 +486,12 @@ export const useClinicPharmacyStore = create<ClinicPharmacyState>((set, get) => 
     set({ page })
   },
 
+  clearDispenseError: () => {
+    set({ dispenseError: null })
+  },
+
   clearPharmacy: () => {
-    set({ items: [], total: 0, page: 1, error: null })
+    set({ items: [], total: 0, page: 1, error: null, dispenseError: null })
   },
 }))
 

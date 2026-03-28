@@ -31,13 +31,13 @@ type ClinicTodayAppointmentItem struct {
 
 // ClinicStatsResponse represents the response for GET /merchant/clinic/stats
 type ClinicStatsResponse struct {
-	TodayAppointments        int64                        `json:"today_appointments"`
-	TodayAppointmentsDelta   int64                        `json:"today_appointments_delta"`
-	InProgressVisits         int64                        `json:"in_progress_visits"`
-	PendingFollowupsOverdue  int64                        `json:"pending_followups_overdue"`
-	NewPatientsThisMonth     int64                        `json:"new_patients_this_month"`
-	TodayAppointmentList     []ClinicTodayAppointmentItem `json:"today_appointment_list"`
-	SyncStatus               ClinicSyncStatus             `json:"sync_status"`
+	TodayAppointments       int64                        `json:"today_appointments"`
+	TodayAppointmentsDelta  int64                        `json:"today_appointments_delta"`
+	InProgressVisits        int64                        `json:"in_progress_visits"`
+	PendingFollowupsOverdue int64                        `json:"pending_followups_overdue"`
+	NewPatientsThisMonth    int64                        `json:"new_patients_this_month"`
+	TodayAppointmentList    []ClinicTodayAppointmentItem `json:"today_appointment_list"`
+	SyncStatus              ClinicSyncStatus             `json:"sync_status"`
 }
 
 // GetClinicStats handles GET /merchant/clinic/stats

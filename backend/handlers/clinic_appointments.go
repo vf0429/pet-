@@ -26,19 +26,19 @@ type ListAppointmentsQuery struct {
 
 // AppointmentListItem represents a single appointment in the list response
 type AppointmentListItem struct {
-	ID           uint   `json:"id"`
-	PetName      string `json:"pet_name"`
-	PetOwnerName string `json:"pet_owner_name"`
+	ID            uint   `json:"id"`
+	PetName       string `json:"pet_name"`
+	PetOwnerName  string `json:"pet_owner_name"`
 	PetOwnerPhone string `json:"pet_owner_phone"`
-	VisitType    string `json:"visit_type"`
-	DoctorID     uint   `json:"doctor_id"`
-	DoctorName   string `json:"doctor_name"`
-	ScheduledAt  string `json:"scheduled_at"`
-	Status       string `json:"status"`
-	CancelReason string `json:"cancel_reason"`
-	Notes        string `json:"notes"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at"`
+	VisitType     string `json:"visit_type"`
+	DoctorID      uint   `json:"doctor_id"`
+	DoctorName    string `json:"doctor_name"`
+	ScheduledAt   string `json:"scheduled_at"`
+	Status        string `json:"status"`
+	CancelReason  string `json:"cancel_reason"`
+	Notes         string `json:"notes"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at"`
 }
 
 // AppointmentListFilters represents active filters in the list response
@@ -268,7 +268,8 @@ func handleMatrixView(c *gin.Context, db *gorm.DB, tenantID uint, dateStr string
 
 // UpdateAppointmentStatusRequest represents the request body for PATCH /merchant/clinic/appointments/:id/status
 type UpdateAppointmentStatusRequest struct {
-	TargetStatus string `json:"target_status" binding:"required"`
+	TargetStatus string `json:"target_status"`
+	Status       string `json:"status"`
 	CancelReason string `json:"cancel_reason"`
 	Note         string `json:"note"`
 }
@@ -297,8 +298,12 @@ func UpdateClinicAppointmentStatus(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// Validate target_status
-		targetStatus := models.ClinicAppointmentStatus(req.TargetStatus)
+		// Validate target_status (accept both target_status and status for compatibility)
+		targetValue := strings.TrimSpace(req.TargetStatus)
+		if targetValue == "" {
+			targetValue = strings.TrimSpace(req.Status)
+		}
+		targetStatus := models.ClinicAppointmentStatus(targetValue)
 		if !models.IsValidClinicAppointmentStatus(string(targetStatus)) {
 			c.JSON(http.StatusBadRequest, gin.H{"code": 40001, "data": nil, "message": "invalid appointment status"})
 			return
@@ -409,6 +414,33 @@ func UpdateClinicAppointmentStatus(db *gorm.DB) gin.HandlerFunc {
 				Status:     models.AppSyncQueueStatusPending,
 			}
 			if err := tx.Create(&syncQueueEntry).Error; err != nil {
+				return err
+			}
+
+			var facade models.VaccinationBookingFacade
+			if err := tx.Where("internal_appointment_id = ?", appt.ID).First(&facade).Error; err == nil {
+				mappedStatus := ""
+				switch targetStatus {
+				case models.ClinicAppointmentStatusConfirmed, models.ClinicAppointmentStatusCheckedIn, models.ClinicAppointmentStatusInProgress:
+					mappedStatus = "confirmed"
+				case models.ClinicAppointmentStatusCompleted:
+					mappedStatus = "completed"
+				case models.ClinicAppointmentStatusCancelled:
+					if strings.Contains(strings.ToLower(req.CancelReason), "user") {
+						mappedStatus = "cancelled_by_user"
+					} else {
+						mappedStatus = "cancelled_by_clinic"
+					}
+				}
+				if mappedStatus != "" {
+					if err := tx.Model(&models.VaccinationBookingFacade{}).Where("id = ?", facade.ID).Updates(map[string]interface{}{
+						"status":     mappedStatus,
+						"updated_at": time.Now(),
+					}).Error; err != nil {
+						return err
+					}
+				}
+			} else if err != nil && err != gorm.ErrRecordNotFound {
 				return err
 			}
 

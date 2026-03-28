@@ -40,7 +40,7 @@ async function loginAs(page: Page, email: string) {
   await page.context().clearCookies()
 
   // Call the backend login API directly (bypass UI form — avoids middleware-redirect race conditions)
-  const res = await page.request.post('http://localhost:8080/merchant/auth/login', {
+  const res = await page.request.post('http://localhost:8080/v1/merchant/auth/login', {
     data: { email, password: getPassword() },
   })
   expect(res.ok(), `Login failed for ${email}: ${res.status()}`).toBeTruthy()

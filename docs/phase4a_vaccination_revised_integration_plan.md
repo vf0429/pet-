@@ -375,3 +375,10 @@ type VaccinationBookingStore = {
 2. Implement schema + middleware for `Merchant Project URL + Merchant Public/App Key`.
 3. Build only 3 facade APIs first: availability, create booking, get booking.
 4. Migrate `VaccineBookingView` to the facade after backend skeleton is stable.
+
+## Implementation Status
+- Step 1 (Schema): ✅ Completed
+- Step 2 (Auth + Routes): ✅ Completed
+- Step 3 (Business Logic): ✅ Completed
+- Step 4 (Sync + Tests): ✅ Completed
+- Phase 4A 整体状态: ✅ DONE

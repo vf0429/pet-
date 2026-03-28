@@ -3,8 +3,11 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { useClinicDashboardStore } from '@/store/clinic'
+import { useMerchantRealtimeStore } from '@/store/realtime'
+import { usePendingTasks } from '@/hooks/usePendingTasks'
 import KPICard from '@/components/KPICard'
 import StatusBadge from '@/components/StatusBadge'
+import SyncStatusCard from '@/components/SyncStatusCard'
 
 export default function ClinicDashboardPage() {
   const {
@@ -13,6 +16,15 @@ export default function ClinicDashboardPage() {
     statsError,
     fetchDashboardData,
   } = useClinicDashboardStore()
+
+  // Phase 4B: Start pending tasks polling and get sync status
+  const { syncStatus, isLoadingSyncStatus, fetchSyncStatus } = useMerchantRealtimeStore()
+  usePendingTasks('clinic')
+
+  // Fetch sync status on mount
+  useEffect(() => {
+    fetchSyncStatus('clinic')
+  }, [fetchSyncStatus])
 
   useEffect(() => {
     fetchDashboardData()
@@ -175,49 +187,14 @@ export default function ClinicDashboardPage() {
           </div>
         </div>
 
-        {/* App Sync Status */}
+        {/* Right column: App Sync Status + Quick Actions */}
         <div>
-          <div className="relative rounded-2xl border border-amber-200 bg-white p-5 shadow-sm">
-            <span className="absolute right-3 top-3 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600">
-              MOCK
-            </span>
-            <h3 className="text-sm font-semibold text-slate-900">App 同步状态</h3>
-            <p className="mt-0.5 text-xs text-slate-400">病历推送队列</p>
-
-            {isLoadingStats ? (
-              <div className="mt-4 animate-pulse space-y-2">
-                <div className="h-4 w-32 rounded bg-slate-200" />
-                <div className="h-3 w-24 rounded bg-slate-200" />
-              </div>
-            ) : (
-              <>
-                <div className="mt-4 flex items-center gap-2">
-                  <span className={`h-2 w-2 rounded-full ${
-                    (stats?.syncStatus.failedCount ?? 0) > 0 ? 'bg-rose-500' : 'bg-emerald-500'
-                  }`} />
-                  <span className="text-sm text-slate-700">
-                    {(stats?.syncStatus.failedCount ?? 0) > 0 ? '同步存在错误' : '同步正常'}
-                  </span>
-                </div>
-                <div className="mt-3 space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">待同步</span>
-                    <span className="font-medium text-slate-900">{stats?.syncStatus.pendingCount ?? 0}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">失败</span>
-                    <span className={`font-medium ${(stats?.syncStatus.failedCount ?? 0) > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
-                      {stats?.syncStatus.failedCount ?? 0}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">最近同步</span>
-                    <span className="text-slate-400">{formatDate(stats?.syncStatus.lastSyncedAt ?? null)}</span>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          {/* App Sync Status - Real SyncStatusCard */}
+          <SyncStatusCard
+            syncStatus={syncStatus}
+            isLoading={isLoadingSyncStatus}
+            businessType="clinic"
+          />
 
           {/* Quick Stats Card */}
           <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

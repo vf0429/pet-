@@ -17,13 +17,15 @@ const COMMON_NAV_ITEMS: NavItem[] = []
 
 const SHOP_NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/merchant/shop/dashboard', businessType: 'shop' },
+  { label: 'Analytics', href: '/merchant/shop/analytics', businessType: 'shop' },
   { label: 'Orders', href: '/merchant/shop/orders', businessType: 'shop' },
   { label: 'Products', href: '/merchant/shop/products', businessType: 'shop' },
   { label: 'Schedule', href: '/merchant/shop/schedule', businessType: 'shop' },
 ]
 
 const CLINIC_NAV_ITEMS: NavItem[] = [
-  { label: 'Clinic Overview', href: '/merchant/clinic', businessType: 'clinic' },
+  { label: 'Clinic Overview', href: '/merchant/clinic/dashboard', businessType: 'clinic' },
+  { label: 'Analytics', href: '/merchant/clinic/analytics', businessType: 'clinic' },
   { label: 'Appointments', href: '/merchant/clinic/appointments', businessType: 'clinic' },
   { label: 'Followups', href: '/merchant/clinic/followups', businessType: 'clinic' },
   { label: 'Insurance', href: '/merchant/clinic/insurance', businessType: 'clinic' },

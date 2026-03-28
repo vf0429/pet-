@@ -1,0 +1,24 @@
+项目根目录：/Users/vfzzz/Desktop/petwell-merchant
+
+开始前必须：
+1. 先读取并遵守以下文件：
+   - /Users/vfzzz/Desktop/petwell-merchant/task_plan.md
+   - /Users/vfzzz/Desktop/petwell-merchant/findings.md
+   - /Users/vfzzz/Desktop/petwell-merchant/progress.md
+   - /Users/vfzzz/Desktop/petwell-merchant/specs/Phase4_App联调/Phase4B_Steps.md
+   - /Users/vfzzz/Desktop/petwell-merchant/docs/phase4b_sync_consumer_review.md
+2. 按 Planning with Files 工作：关键发现写回 findings.md，阶段进度写回 progress.md，阶段状态写回 task_plan.md。
+3. 只修复 Architect review 提出的 backend 问题，不要扩散范围。
+
+你是 Backend agent。请修复 `docs/phase4b_sync_consumer_review.md` 中列出的 Required Fixes：
+
+1. 修复 retry backoff off-by-one：必须严格满足
+   - 第 1 次失败 -> 30s
+   - 第 2 次失败 -> 2min
+   - 第 3 次失败 -> 10min
+2. 为 sync consumer 增加 panic recover，避免 goroutine 因单条任务异常退出。
+3. 在 `backend/models/app_sync_queue.go` 补充更贴合 consumer 扫描条件的复合索引。
+4. 修完后执行：
+   - cd /Users/vfzzz/Desktop/petwell-merchant/backend && gofmt -w ./...
+   - cd /Users/vfzzz/Desktop/petwell-merchant/backend && go build ./...
+5. 把修复摘要和构建结果写回 planning files。

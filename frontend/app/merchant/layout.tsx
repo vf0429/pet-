@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 
 import Sidebar from '@/components/Sidebar'
 import TopBar from '@/components/TopBar'
+import ToastContainer from '@/components/ToastContainer'
 import { useAuthStore } from '@/store/auth'
 
 function getPageTitle(pathname: string) {
@@ -134,6 +135,8 @@ export default function MerchantLayout({ children }: { children: ReactNode }) {
         />
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>
+      {/* Global Toast notifications */}
+      <ToastContainer />
     </div>
   )
 }

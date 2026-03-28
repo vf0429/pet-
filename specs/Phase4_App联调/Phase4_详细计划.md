@@ -1,5 +1,13 @@
 # Phase 4：App 实时联调 + Supabase 迁移预演
 
+---
+> ⚠️ 此文档中的 sync_queue / pending-tasks / Toast / Supabase Realtime 内容
+> 已被 Phase 4B 接管，Vaccination Facade 部分已由 Phase 4A 实现。
+> 请以 docs/phase4a_*.md 和 Phase4A_Steps.md 为准。
+
+---
+
+
 > 目标：App ↔ 商家后台双向状态同步，完成 Supabase 迁移 Checklist
 > 前置条件：Phase 3 QA 签收通过
 

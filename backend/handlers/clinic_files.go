@@ -19,8 +19,8 @@ const (
 )
 
 var allowedMimeTypes = map[string]bool{
-	"image/jpeg": true,
-	"image/png":  true,
+	"image/jpeg":      true,
+	"image/png":       true,
 	"application/pdf": true,
 }
 

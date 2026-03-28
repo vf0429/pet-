@@ -42,7 +42,7 @@ async function loginAs(page: Page, email: string) {
   await preparePage(page)
   await page.context().clearCookies()
 
-  const res = await page.request.post('http://localhost:8080/merchant/auth/login', {
+  const res = await page.request.post('http://localhost:8080/v1/merchant/auth/login', {
     data: { email, password: getPassword() },
   })
   expect(res.ok(), `Login failed for ${email}: ${res.status()}`).toBeTruthy()

@@ -1,59 +1,83 @@
-# Phase 4 Supabase Checklist
+# Phase 4B Sync / Toast Validation Checklist
 
-## 1. Schema / Migration
-- [ ] `app_sync_queue` 已包含：`next_retry_at`、`last_attempt_at`、`sent_at`、`dead_lettered_at`、`dead_letter_reason`
-- [ ] `app_sync_queue.status` 枚举仍兼容：`pending | sent | failed | dead_letter`
-- [ ] `idempotency_keys` 表已创建
-- [ ] `idempotency_keys.key` 为主键/唯一键
-- [ ] `idempotency_keys.request_hash`、`processing_status`、`expires_at`、`last_seen_at` 字段存在
-- [ ] `app_sync_queue` 相关索引已迁移：tenant/status、tenant/entity、tenant/retry
-- [ ] `idempotency_keys` 相关索引已迁移：tenant/entity、`processing_status`、`expires_at`
+> 保留原文件名，当前内容已按 Phase 4B QA 验收重点重写。
 
-## 2. Data Safety / Multi-tenant Isolation
-- [ ] 所有 Phase 4 查询都显式带 `tenant_id`
-- [ ] `/merchant/sync/status` 在 shop / clinic 视角下只返回当前 tenant 数据
-- [ ] `/merchant/pending-tasks` 不会混入其他 tenant 的订单/预约/病历/随访
-- [ ] Supabase 环境若启用 RLS，需补 tenant 维度策略或确认 API 层已完全托管隔离
+## 1. 本轮验证范围
+- [ ] `GET /v1/merchant/pending-tasks`
+- [ ] `GET /v1/merchant/sync/status`
+- [ ] Toast 轮询 / dedupe / 页面可见性恢复
+- [ ] Shop / Clinic Dashboard sync status 卡片
+- [ ] 多租户隔离
+- [ ] 状态机合法/非法流转
+- [ ] 关键页面截图基线
 
-## 3. Consumer / Retry / Dead Letter
-- [ ] consumer 扫描条件与契约一致：`status in (pending, failed)` 且 `retry_count < 3`
-- [ ] `next_retry_at IS NULL OR <= now()` 的兼容逻辑已生效
-- [ ] 第 1 次失败后退避约 30s
-- [ ] 第 2 次失败后退避约 2m
-- [ ] 第 3 次失败进入 `dead_letter`
-- [ ] 不可重试错误（invalid payload / invalid idempotency / permanent provider error）直接进入死信
-- [ ] `dead_letter_reason` 写入值可追踪：`max_retry_exceeded` / `invalid_payload` / `invalid_idempotency_key` / `permanent_provider_error`
+## 2. 当前实现基线（2026-03-27 审计）
 
-## 4. Idempotency
-- [ ] 幂等键格式符合：`{entity_type}_{entity_id}_{action}_{updated_at_unix}`
-- [ ] 同 key + 同 hash 重复派发时命中缓存响应
-- [ ] 同 key + 不同 hash 被拦截
-- [ ] `expires_at` TTL 为 30 分钟
-- [ ] 过期清理任务按 10 分钟节奏运行或有等价替代机制
+### Backend
+- [ ] `backend/handlers/sync.go` 已挂载 `/v1/merchant/pending-tasks` 与 `/v1/merchant/sync/status`
+- [ ] `backend/cmd/server/main.go` 已在 protected merchant routes 注册上述接口
+- [ ] `backend/jobs/sync_consumer.go` 已存在，包含 retry/backoff/dead_letter 基础逻辑
+- [ ] `backend/models/app_sync_queue.go` 已包含 `status` / `retry_count` / `last_error` / `next_retry_at`
 
-## 5. API Contract
-- [ ] `GET /merchant/sync/status` 返回 `{code,data,message}` envelope
-- [ ] `GET /merchant/pending-tasks` 返回 `{code,data,message}` envelope
-- [ ] 请求必须同时带 `X-Session-ID` 与 `X-Business-Type`
-- [ ] `sync/status` 字段名保持 snake_case，前端映射正常
-- [ ] `pending-tasks.cursor` 可用于增量轮询
-- [ ] `pending-tasks.tasks[].dedupe_key` 稳定可复现
+### Frontend
+- [ ] `frontend/store/realtime.ts` 已实现 pending task polling、toast queue、30s dedupe window、最多 3 条 toast
+- [ ] `frontend/hooks/usePendingTasks.ts` 已实现前台 30s、后台 120s 的轮询切换
+- [ ] `frontend/components/ToastContainer.tsx` / `ToastNotification.tsx` 已接入
+- [ ] `frontend/components/SyncStatusCard.tsx` 已接入 Shop / Clinic Dashboard
 
-## 6. Frontend Runtime
-- [ ] layout 首次进入会立即请求 `pending-tasks`
-- [ ] 页面可见时按 30s 轮询；隐藏时降频到 120s 或等价策略
-- [ ] 同一 `dedupe_key` 在 30s 窗口内不会重复 toast
-- [ ] 最多只显示 3 条 toast
-- [ ] Shop Dashboard / Clinic Dashboard 都有同步状态卡片
-- [ ] 关键页面截图基线已更新
+## 3. `/v1/merchant/pending-tasks` API 验收点
+- [ ] 返回 envelope：`{ code, data, message }`
+- [ ] `data.tasks` 为数组
+- [ ] `data.count === data.tasks.length`
+- [ ] 每个 task 至少包含：`type` / `entity_id` / `payload` / `created_at`
+- [ ] 只返回当前 tenant 的最近 5 分钟 pending 任务
+- [ ] tenant A 新产生的 queue/task 不会出现在 tenant B 的结果里
 
-## 7. Manual Verification Commands
-- [ ] 后端 schema 抽查：`sqlite3 backend/petwell.db ".schema idempotency_keys"`
-- [ ] 表存在性抽查：`sqlite3 backend/petwell.db "SELECT name FROM sqlite_master WHERE type='table' AND name='idempotency_keys';"`
-- [ ] 队列字段抽查：`sqlite3 backend/petwell.db "PRAGMA table_info('app_sync_queue');"`
-- [ ] 如已迁移到 Supabase/Postgres，改用 `psql`/Supabase SQL Editor 执行同等检查
+## 4. `/v1/merchant/sync/status` API 验收点
+- [ ] 返回 envelope：`{ code, data, message }`
+- [ ] `data.orders.last_synced_at / pending_count / failed_count` 存在
+- [ ] `data.appointments.last_synced_at / pending_count / failed_count` 存在
+- [ ] `data.notifications_sent_today` 存在
+- [ ] `data.dead_letter_count` 存在
+- [ ] tenant A 的状态变化不会污染 tenant B 的聚合结果
 
-## 8. Current Notes
-- 本轮 Codex 仅产出 QA 资产，未执行 Playwright。
-- 若运行时发现前端 `sync/status` 未携带 `X-Business-Type`，需优先修复请求头链路后再做回归。
-- 若 seed 数据不足以稳定触发 `sync_failed` / `medical_record_pushed`，建议继续保留浏览器 route mock 用例做前端行为回归。
+## 5. Toast / Polling / Dedupe 验收点
+- [ ] Dashboard 挂载后会立即请求 pending tasks
+- [ ] 页面可见时按 30s 轮询
+- [ ] 页面隐藏时降频到 120s
+- [ ] 页面恢复可见时立即补拉一次
+- [ ] 同一 `dedupe_key` 在 30s 窗口内不会重复弹 toast
+- [ ] 同时最多显示 3 条 toast
+- [ ] Toast 支持手动关闭与 5s 自动消失
+- [ ] Toast 至少覆盖 `new_order` / `new_appointment` / `sync_failed` / `followup_overdue`
+
+## 6. Dashboard Sync Status 验收点
+- [ ] Shop Dashboard 展示真实 sync status card
+- [ ] Clinic Dashboard 展示真实 sync status card
+- [ ] 卡片字段来自 realtime store，而不是页面内 mock 常量
+- [ ] 关键页面截图基线存在：shop dashboard / clinic dashboard / toast state
+
+## 7. 多租户隔离 & 状态机验收点
+- [ ] tenant 1 的订单/待办/同步状态不会泄漏给 tenant 2
+- [ ] tenant 2 的 clinic 数据不会泄漏给 tenant 1 的页面上下文
+- [ ] 合法流转：例如 shop `paid -> preparing` 成功
+- [ ] 非法流转：例如 shop `completed -> preparing` 被拦截（UI 不给入口或 API 返回错误）
+
+## 8. 当前仓库审计发现的 contract drift
+- [ ] **已记录**：`backend/handlers/sync.go` 当前返回的是 Phase 4B 最小 DTO；并未输出 cursor / dedupe_key / title / summary / action 等富通知字段。
+- [ ] **已记录**：`frontend/lib/api.ts` 当前 `getMerchantSyncStatus()` / `getMerchantPendingTasks()` 把 `X-Business-Type` 写死为 `clinic`，会影响 shop dashboard 契约验证。
+- [ ] **已记录**：因此本轮 Playwright 资产同时包含“真实 API 最小契约断言”和“前端 route mock 行为断言”，用于分别验证后端接口与前端 Toast/UI 行为。
+
+## 9. 本轮已整理的测试资产
+- [ ] `tests/phase4/phase4_p0.spec.ts`
+  - API：`sync/status` / `pending-tasks`
+  - 多租户隔离：tenant A 订单状态变更后，tenant B 不应看到对应 pending task
+  - Toast：轮询、dedupe、visibility restore
+  - Dashboard：Shop / Clinic sync status 卡片截图
+  - 状态机：合法 / 非法流转
+
+## 10. 执行提示
+- [ ] 测试 baseURL 固定为 `http://localhost:3000`
+- [ ] 后端直连地址为 `http://localhost:8080`
+- [ ] 登录密码通过 `process.env.TEST_PASSWORD` 注入
+- [ ] 本轮仅整理文档与测试资产，未在当前会话执行 Playwright

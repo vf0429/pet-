@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { useMerchantRealtimeStore } from '@/store/realtime'
+import { BusinessType } from '@/lib/api'
 
 const DEFAULT_POLL_INTERVAL_MS = 30_000 // 30 seconds
 const BACKGROUND_POLL_INTERVAL_MS = 120_000 // 2 minutes when hidden
@@ -10,24 +11,35 @@ const BACKGROUND_POLL_INTERVAL_MS = 120_000 // 2 minutes when hidden
  * Hook that manages polling for pending tasks.
  * Starts polling on mount, stops on unmount.
  * Reduces poll frequency when the document is hidden.
+ * @param businessType - 'shop' or 'clinic', determines which API to call
+ * @param pollIntervalMs - polling interval in milliseconds (default 30s)
  */
-export function usePendingTasks(pollIntervalMs: number = DEFAULT_POLL_INTERVAL_MS) {
+export function usePendingTasks(
+  businessType: BusinessType,
+  pollIntervalMs: number = DEFAULT_POLL_INTERVAL_MS
+) {
   const { fetchPendingTasks, isPollingTasks } = useMerchantRealtimeStore()
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isDocumentHidden = useRef<boolean>(false)
+  const businessTypeRef = useRef<BusinessType>(businessType)
+
+  // Keep businessType ref up to date without restarting polling
+  useEffect(() => {
+    businessTypeRef.current = businessType
+  }, [businessType])
 
   const startPolling = useCallback(() => {
     if (intervalRef.current) return
 
     // Immediate first fetch
-    fetchPendingTasks()
+    fetchPendingTasks(businessTypeRef.current)
 
     const interval = isDocumentHidden.current
       ? BACKGROUND_POLL_INTERVAL_MS
       : pollIntervalMs
 
     intervalRef.current = setInterval(() => {
-      fetchPendingTasks()
+      fetchPendingTasks(businessTypeRef.current)
     }, interval)
   }, [fetchPendingTasks, pollIntervalMs])
 
@@ -53,7 +65,7 @@ export function usePendingTasks(pollIntervalMs: number = DEFAULT_POLL_INTERVAL_M
         if (intervalRef.current) {
           clearInterval(intervalRef.current)
           intervalRef.current = setInterval(() => {
-            fetchPendingTasks()
+            fetchPendingTasks(businessTypeRef.current)
           }, BACKGROUND_POLL_INTERVAL_MS)
         }
       } else {
@@ -61,11 +73,11 @@ export function usePendingTasks(pollIntervalMs: number = DEFAULT_POLL_INTERVAL_M
         if (intervalRef.current) {
           clearInterval(intervalRef.current)
           intervalRef.current = setInterval(() => {
-            fetchPendingTasks()
+            fetchPendingTasks(businessTypeRef.current)
           }, pollIntervalMs)
         }
         // Fetch immediately when becoming visible
-        fetchPendingTasks()
+        fetchPendingTasks(businessTypeRef.current)
       }
     }
 

@@ -5,21 +5,34 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
 	"petwell-merchant-backend/handlers"
+	"petwell-merchant-backend/jobs"
 	"petwell-merchant-backend/middleware"
+	"petwell-merchant-backend/migrations"
 	"petwell-merchant-backend/models"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 func main() {
 	// Initialize database
-	db, err := gorm.Open(sqlite.Open("petwell.db"), &gorm.Config{})
+	// Use DATABASE_URL env var for PostgreSQL in production; fallback to SQLite for local dev
+	var db *gorm.DB
+	var err error
+	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		log.Println("Using PostgreSQL database")
+	} else {
+		db, err = gorm.Open(sqlite.Open("petwell.db"), &gorm.Config{})
+		log.Println("DATABASE_URL not set, using SQLite (dev mode)")
+	}
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
@@ -44,8 +57,17 @@ func main() {
 		&models.ClinicTreatment{},
 		&models.InsuranceClaim{},
 		&models.InsuranceClaimFile{},
+		&models.MerchantProject{},
+		&models.MerchantAppKey{},
+		&models.ClinicIntegrationBinding{},
+		&models.ClinicScheduleTemplate{},
+		&models.VaccinationBookingFacade{},
 	); err != nil {
 		log.Fatal("Failed to migrate database:", err)
+	}
+
+	if err := migrations.RunAnalyticsIndexMigration(db); err != nil {
+		log.Fatal("Failed to run analytics index migration:", err)
 	}
 
 	// Seed initial data
@@ -54,8 +76,8 @@ func main() {
 	// Setup Gin router
 	r := gin.Default()
 
-	// API group /merchant
-	merchant := r.Group("/merchant")
+	// API group /v1/merchant
+	merchant := r.Group("/v1/merchant")
 
 	// Auth routes (no authentication required)
 	auth := merchant.Group("/auth")
@@ -103,9 +125,29 @@ func main() {
 				insuranceGroup.POST("/claims/:id/files", handlers.UploadClaimFile(db))
 			}
 		}
+
+		// Sync routes — app sync queue status and pending tasks
+		protected.GET("/pending-tasks", handlers.GetPendingTasks(db))
+		protected.GET("/sync/status", handlers.GetSyncStatus(db))
+		protected.GET("/analytics/shop", handlers.GetShopAnalytics(db))
+		protected.GET("/analytics/clinic", handlers.GetClinicAnalytics(db))
+	}
+
+	// App-facing Facade — consumer App only (app-key auth, NOT merchant session)
+	appV1 := r.Group("/app/v1")
+	appV1.Use(middleware.AppKeyAuthMiddleware(db))
+	{
+		vaccGroup := appV1.Group("/vaccinations")
+		{
+			vaccGroup.GET("/availability", handlers.GetVaccinationAvailability(db))
+			vaccGroup.POST("/bookings", handlers.CreateVaccinationBooking(db))
+			vaccGroup.GET("/bookings/:external_booking_id", handlers.GetVaccinationBooking(db))
+			vaccGroup.POST("/bookings/:external_booking_id/cancel", handlers.CancelVaccinationBooking(db))
+		}
 	}
 
 	log.Println("Server starting on :8080")
+	jobs.StartSyncConsumer(db, 30*time.Second)
 	if err := r.Run(":8080"); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
@@ -119,6 +161,7 @@ func seedData(db *gorm.DB) {
 		// Still run shop seed if tenants exist but shop data doesn't
 		seedShopData(db)
 		seedClinicData(db)
+		seedPhase4AData(db)
 		return
 	}
 
@@ -201,6 +244,9 @@ func seedData(db *gorm.DB) {
 
 	// Seed clinic data
 	seedClinicData(db)
+
+	// Seed Phase 4A data
+	seedPhase4AData(db)
 }
 
 func seedShopData(db *gorm.DB) {
@@ -856,4 +902,91 @@ func seedClinicData(db *gorm.DB) {
 	}
 
 	log.Println("Clinic seed data created successfully")
+}
+
+func seedPhase4AData(db *gorm.DB) {
+	var count int64
+	db.Model(&models.MerchantProject{}).Count(&count)
+	if count > 0 {
+		return
+	}
+
+	var tenant1 models.Tenant
+	if err := db.Where("id = ?", 1).First(&tenant1).Error; err != nil {
+		log.Println("Phase 4A seed skipped: tenant 1 not found")
+		return
+	}
+
+	createProjectBundle := func(projectCode, name, baseURL, keyPrefix, rawKey, environment, clinicIntegrationID string, tenantID uint) error {
+		keyHash, err := bcrypt.GenerateFromPassword([]byte(rawKey), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+
+		project := models.MerchantProject{
+			ProjectCode: projectCode,
+			TenantID:    tenantID,
+			Name:        name,
+			BaseURL:     baseURL,
+			Status:      "active",
+		}
+		if err := db.Create(&project).Error; err != nil {
+			return err
+		}
+
+		appKey := models.MerchantAppKey{
+			ProjectID:   project.ID,
+			KeyPrefix:   keyPrefix,
+			KeyHash:     string(keyHash),
+			Environment: environment,
+			Status:      "active",
+		}
+		if err := db.Create(&appKey).Error; err != nil {
+			return err
+		}
+
+		binding := models.ClinicIntegrationBinding{
+			ProjectID:           project.ID,
+			TenantID:            tenantID,
+			ClinicIntegrationID: clinicIntegrationID,
+			BusinessType:        "clinic",
+			DefaultDoctorID:     nil,
+			Timezone:            "Asia/Hong_Kong",
+			Status:              "active",
+		}
+		if err := db.Create(&binding).Error; err != nil {
+			return err
+		}
+
+		for day := 0; day <= 6; day++ {
+			template := models.ClinicScheduleTemplate{
+				TenantID:        tenantID,
+				DayOfWeek:       day,
+				OpenTime:        "09:00",
+				CloseTime:       "18:00",
+				SlotDurationMin: 30,
+				IsActive:        day != 0,
+			}
+			if err := db.Create(&template).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	if err := createProjectBundle("happypaws-hk", "Happy Paws HK", "http://localhost:8080", "pk_app_test", "pk_app_test_secret_key_dev", "dev", "clinic_happypaws_hk", 1); err != nil {
+		log.Println("Phase 4A seed failed for tenant 1:", err)
+		return
+	}
+
+	var tenant2 models.Tenant
+	if err := db.Where("id = ?", 2).First(&tenant2).Error; err == nil {
+		if err := createProjectBundle("pawsclinic-hk", "Paws Clinic HK", "http://localhost:8080", "pk_app_paws", "pk_app_paws_secret_key_dev", "dev", "clinic_pawsclinic_hk", 2); err != nil {
+			log.Println("Phase 4A seed failed for tenant 2:", err)
+			return
+		}
+	}
+
+	log.Println("Phase 4A seed data created successfully")
 }

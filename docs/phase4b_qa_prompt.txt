@@ -1,0 +1,25 @@
+项目根目录：/Users/vfzzz/Desktop/petwell-merchant
+
+开始前必须：
+1. 先读取并遵守以下文件：
+   - /Users/vfzzz/Desktop/petwell-merchant/task_plan.md
+   - /Users/vfzzz/Desktop/petwell-merchant/findings.md
+   - /Users/vfzzz/Desktop/petwell-merchant/progress.md
+   - /Users/vfzzz/Desktop/petwell-merchant/specs/Phase4_App联调/Phase4B_Steps.md
+2. 按 Planning with Files 工作：关键发现写回 findings.md，阶段进度写回 progress.md，阶段状态写回 task_plan.md。
+3. 只做 Phase 4B 范围，不要改动 Phase 4A facade contract 范围。
+4. 代码/文档必须直接写入文件系统，不要只在聊天里输出。
+
+你是 QA agent。请严格按 `Phase4B_Steps.md` 的 QA/验收思路做验证资产整理。
+
+任务：
+- 先读取 backend/frontend 最终实现。
+- 检查现有：
+  - tests/phase4/phase4_p0.spec.ts
+  - docs/phase4_supabase_checklist.md
+- 如需，更新或补充验证文档，重点覆盖：
+  - /v1/merchant/pending-tasks
+  - /v1/merchant/sync/status
+  - Toast 轮询 / dedupe / dashboard sync status
+- 本轮优先输出文档与测试资产，不强制你自己执行所有测试，除非步骤文档明确要求。
+- 将产出和结论写回 planning files。

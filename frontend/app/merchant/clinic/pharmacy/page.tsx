@@ -50,11 +50,13 @@ export default function ClinicPharmacyPage() {
     dispense,
     setFilters,
     setPage,
+    clearDispenseError,
   } = useClinicPharmacyStore()
 
   const [searchInput, setSearchInput] = useState(filters.search)
   const [dispenseTarget, setDispenseTarget] = useState<number | null>(null)
   const [dispenseQuantity, setDispenseQuantity] = useState('1')
+  const [prescriptionId, setPrescriptionId] = useState('')
   const [dispenseNote, setDispenseNote] = useState('')
 
   const searchTimeoutRef = useRef<NodeJS.Timeout>(undefined)
@@ -81,15 +83,22 @@ export default function ClinicPharmacyPage() {
   const handleDispense = async () => {
     if (!dispenseTarget) return
 
+    const targetItem = items.find((i) => i.id === dispenseTarget)
+    const resolvedPrescriptionId =
+      targetItem?.isPrescriptionOnly && prescriptionId.trim()
+        ? parseInt(prescriptionId, 10)
+        : undefined
+
     try {
       await dispense(
         dispenseTarget,
         parseInt(dispenseQuantity, 10),
-        undefined, // prescriptionId - would need modal for rx items
+        resolvedPrescriptionId,
         dispenseNote || undefined
       )
       setDispenseTarget(null)
       setDispenseQuantity('1')
+      setPrescriptionId('')
       setDispenseNote('')
     } catch {
       // Error handled by store
@@ -291,6 +300,7 @@ export default function ClinicPharmacyPage() {
                           <button
                             type="button"
                             onClick={() => setDispenseTarget(item.id)}
+                            onClickCapture={() => clearDispenseError()}
                             disabled={item.stockLevel === 0 || item.isExpired}
                             className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
                           >
@@ -396,6 +406,8 @@ export default function ClinicPharmacyPage() {
           isPrescriptionOnly={items.find((i) => i.id === dispenseTarget)?.isPrescriptionOnly ?? false}
           quantity={dispenseQuantity}
           setQuantity={setDispenseQuantity}
+          prescriptionId={prescriptionId}
+          setPrescriptionId={setPrescriptionId}
           note={dispenseNote}
           setNote={setDispenseNote}
           isDispensing={isDispensing}
@@ -404,7 +416,9 @@ export default function ClinicPharmacyPage() {
           onClose={() => {
             setDispenseTarget(null)
             setDispenseQuantity('1')
+            setPrescriptionId('')
             setDispenseNote('')
+            clearDispenseError()
           }}
         />
       )}
@@ -421,6 +435,8 @@ interface DispenseModalProps {
   isPrescriptionOnly: boolean
   quantity: string
   setQuantity: (v: string) => void
+  prescriptionId: string
+  setPrescriptionId: (v: string) => void
   note: string
   setNote: (v: string) => void
   isDispensing: boolean
@@ -436,6 +452,8 @@ function DispenseModal({
   isPrescriptionOnly,
   quantity,
   setQuantity,
+  prescriptionId,
+  setPrescriptionId,
   note,
   setNote,
   isDispensing,
@@ -483,6 +501,22 @@ function DispenseModal({
               />
             </div>
 
+            {isPrescriptionOnly && (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  处方编号
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={prescriptionId}
+                  onChange={(e) => setPrescriptionId(e.target.value)}
+                  placeholder="请输入处方编号"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+            )}
+
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 备注（可选）
@@ -513,7 +547,12 @@ function DispenseModal({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={isDispensing || parseInt(quantity, 10) < 1 || parseInt(quantity, 10) > maxQuantity}
+            disabled={
+              isDispensing ||
+              parseInt(quantity, 10) < 1 ||
+              parseInt(quantity, 10) > maxQuantity ||
+              (isPrescriptionOnly && (!prescriptionId.trim() || parseInt(prescriptionId, 10) < 1))
+            }
             className="flex-1 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
           >
             {isDispensing ? '处理中...' : '确认分发'}

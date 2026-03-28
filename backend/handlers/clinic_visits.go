@@ -247,16 +247,16 @@ type UpdateVisitFollowupInput struct {
 
 // UpdateVisitRequest represents the request body for PATCH /merchant/clinic/visits/:id
 type UpdateVisitRequest struct {
-	ChiefComplaint         *string                        `json:"chief_complaint"`
-	Temperature            *float64                       `json:"temperature"`
-	HeartRate              *int                           `json:"heart_rate"`
-	RespiratoryRate        *int                           `json:"respiratory_rate"`
-	TargetStatus           *string                        `json:"target_status"`
-	Diagnoses              *[]UpdateVisitDiagnosisInput   `json:"diagnoses"`
+	ChiefComplaint         *string                         `json:"chief_complaint"`
+	Temperature            *float64                        `json:"temperature"`
+	HeartRate              *int                            `json:"heart_rate"`
+	RespiratoryRate        *int                            `json:"respiratory_rate"`
+	TargetStatus           *string                         `json:"target_status"`
+	Diagnoses              *[]UpdateVisitDiagnosisInput    `json:"diagnoses"`
 	Prescriptions          *[]UpdateVisitPrescriptionInput `json:"prescriptions"`
-	Treatments             *[]UpdateVisitTreatmentInput   `json:"treatments"`
-	Followups              *[]UpdateVisitFollowupInput    `json:"followups"`
-	GeneralMedicationNotes *string                        `json:"general_medication_notes"`
+	Treatments             *[]UpdateVisitTreatmentInput    `json:"treatments"`
+	Followups              *[]UpdateVisitFollowupInput     `json:"followups"`
+	GeneralMedicationNotes *string                         `json:"general_medication_notes"`
 }
 
 // UpdateClinicVisit handles PATCH /merchant/clinic/visits/:id
@@ -315,7 +315,8 @@ func UpdateClinicVisit(db *gorm.DB) gin.HandlerFunc {
 		// Execute in transaction
 		txErr := db.Transaction(func(tx *gorm.DB) error {
 			// Update scalar fields
-			updates := map[string]interface{}{"updated_at": time.Now()}
+			now := time.Now()
+			updates := map[string]interface{}{"updated_at": now}
 
 			if req.ChiefComplaint != nil {
 				updates["chief_complaint"] = *req.ChiefComplaint
@@ -333,7 +334,11 @@ func UpdateClinicVisit(db *gorm.DB) gin.HandlerFunc {
 				updates["general_medication_notes"] = *req.GeneralMedicationNotes
 			}
 			if req.TargetStatus != nil {
-				updates["status"] = models.ClinicVisitStatus(*req.TargetStatus)
+				targetStatus := models.ClinicVisitStatus(*req.TargetStatus)
+				updates["status"] = targetStatus
+				if targetStatus == models.ClinicVisitStatusClosed {
+					updates["closed_at"] = now
+				}
 			}
 
 			if err := tx.Model(&visit).Updates(updates).Error; err != nil {

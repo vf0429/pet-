@@ -14,20 +14,20 @@ import (
 
 // PharmacyItemResponse represents a single pharmacy item in the list
 type PharmacyItemResponse struct {
-	ID                 uint    `json:"id"`
-	Name               string  `json:"name"`
-	Specification      string  `json:"specification"`
-	BatchNo            string  `json:"batch_no"`
-	ExpiresAt          string  `json:"expires_at"`
-	StockLevel         int     `json:"stock_level"`
-	LowStockThreshold  int     `json:"low_stock_threshold"`
-	IsLowStock         bool    `json:"is_low_stock"`
-	StorageCondition   string  `json:"storage_condition"`
-	IsPrescriptionOnly bool    `json:"is_prescription_only"`
-	IsExpiringSoon     bool    `json:"is_expiring_soon"`
-	IsExpired          bool    `json:"is_expired"`
-	DaysUntilExpiry    int     `json:"days_until_expiry"`
-	CreatedAt          string  `json:"created_at"`
+	ID                 uint   `json:"id"`
+	Name               string `json:"name"`
+	Specification      string `json:"specification"`
+	BatchNo            string `json:"batch_no"`
+	ExpiresAt          string `json:"expires_at"`
+	StockLevel         int    `json:"stock_level"`
+	LowStockThreshold  int    `json:"low_stock_threshold"`
+	IsLowStock         bool   `json:"is_low_stock"`
+	StorageCondition   string `json:"storage_condition"`
+	IsPrescriptionOnly bool   `json:"is_prescription_only"`
+	IsExpiringSoon     bool   `json:"is_expiring_soon"`
+	IsExpired          bool   `json:"is_expired"`
+	DaysUntilExpiry    int    `json:"days_until_expiry"`
+	CreatedAt          string `json:"created_at"`
 }
 
 // ListPharmacyQuery represents query parameters for GET /merchant/clinic/pharmacy
