@@ -117,6 +117,17 @@ func main() {
 			clinicGroup.GET("/stats", clinicReadRoles, handlers.GetClinicStats(db))
 			clinicGroup.GET("/appointments", clinicReadRoles, handlers.ListClinicAppointments(db))
 
+			// Clients
+			clinicGroup.GET("/clients", clinicReadRoles, handlers.ListClinicClients(db))
+			clinicGroup.GET("/clients/:id", clinicReadRoles, handlers.GetClinicClientDetail(db))
+
+			// Patients
+			clinicGroup.GET("/patients", clinicReadRoles, handlers.ListClinicPatients(db))
+			clinicGroup.GET("/patients/:id", clinicReadRoles, handlers.GetClinicPatientDetail(db))
+
+			// Health Reminders (GET — read-only; PATCH registered below after visitWriteRoles)
+			clinicGroup.GET("/reminders", clinicReadRoles, handlers.ListClinicReminders(db))
+
 			// Appointment status update — role-restricted inside handler
 			// (Owner/Manager: all; Frontdesk: confirm/check-in/cancel; Doctor: in_progress/completed)
 			clinicGroup.PATCH("/appointments/:id/status",
@@ -138,6 +149,9 @@ func main() {
 			clinicGroup.GET("/followups", visitWriteRoles, handlers.ListClinicFollowups(db))
 			clinicGroup.POST("/followups", visitWriteRoles, handlers.CreateClinicFollowup(db))
 			clinicGroup.PATCH("/followups/:id/status", visitWriteRoles, handlers.UpdateClinicFollowupStatus(db))
+
+			// Health Reminders — fulfill (write)
+			clinicGroup.PATCH("/reminders/:id", visitWriteRoles, handlers.FulfillClinicReminder(db))
 
 			// Pharmacy — Owner/Manager/Doctor
 			clinicGroup.GET("/pharmacy", visitWriteRoles, handlers.ListPharmacyItems(db))
