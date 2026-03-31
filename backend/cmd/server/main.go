@@ -62,6 +62,12 @@ func main() {
 		&models.ClinicIntegrationBinding{},
 		&models.ClinicScheduleTemplate{},
 		&models.VaccinationBookingFacade{},
+		&models.AnimalSpecies{},
+		&models.AnimalBreed{},
+		&models.ClinicClient{},
+		&models.ClinicPatient{},
+		&models.HealthReminder{},
+		&models.ClinicInvoice{},
 	); err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
@@ -103,26 +109,50 @@ func main() {
 		// Clinic routes
 		clinicGroup := protected.Group("/clinic")
 		{
-			clinicGroup.GET("/stats", handlers.GetClinicStats(db))
-			clinicGroup.GET("/appointments", handlers.ListClinicAppointments(db))
-			clinicGroup.PATCH("/appointments/:id/status", handlers.UpdateClinicAppointmentStatus(db))
-			clinicGroup.GET("/visits/:id", handlers.GetClinicVisit(db))
-			clinicGroup.PATCH("/visits/:id", handlers.UpdateClinicVisit(db))
-			clinicGroup.POST("/visits/:id/push-to-app", handlers.PushVisitToApp(db))
-			clinicGroup.GET("/followups", handlers.ListClinicFollowups(db))
-			clinicGroup.POST("/followups", handlers.CreateClinicFollowup(db))
-			clinicGroup.PATCH("/followups/:id/status", handlers.UpdateClinicFollowupStatus(db))
-			clinicGroup.GET("/pharmacy", handlers.ListPharmacyItems(db))
-			clinicGroup.PATCH("/pharmacy/:id/dispense", handlers.DispensePharmacyItem(db))
-			clinicGroup.POST("/visits/:id/files", handlers.UploadVisitFile(db))
+			// Read-only endpoints — all clinic roles may access
+			clinicReadRoles := middleware.RequireRoles(
+				models.UserRoleOwner, models.UserRoleManager,
+				models.UserRoleDoctor, models.UserRoleFrontdesk,
+			)
+			clinicGroup.GET("/stats", clinicReadRoles, handlers.GetClinicStats(db))
+			clinicGroup.GET("/appointments", clinicReadRoles, handlers.ListClinicAppointments(db))
 
-			// Insurance routes
+			// Appointment status update — role-restricted inside handler
+			// (Owner/Manager: all; Frontdesk: confirm/check-in/cancel; Doctor: in_progress/completed)
+			clinicGroup.PATCH("/appointments/:id/status",
+				middleware.RequireAppointmentStatusRole(),
+				handlers.UpdateClinicAppointmentStatus(db))
+
+			// Visit read — Owner/Manager/Doctor/Frontdesk (Frontdesk needs to see status)
+			clinicGroup.GET("/visits/:id", clinicReadRoles, handlers.GetClinicVisit(db))
+
+			// Visit write (clinical content + status) — Owner/Manager/Doctor only
+			visitWriteRoles := middleware.RequireRoles(
+				models.UserRoleOwner, models.UserRoleManager, models.UserRoleDoctor,
+			)
+			clinicGroup.PATCH("/visits/:id", visitWriteRoles, handlers.UpdateClinicVisit(db))
+			clinicGroup.POST("/visits/:id/push-to-app", visitWriteRoles, handlers.PushVisitToApp(db))
+			clinicGroup.POST("/visits/:id/files", visitWriteRoles, handlers.UploadVisitFile(db))
+
+			// Followups — Owner/Manager/Doctor
+			clinicGroup.GET("/followups", visitWriteRoles, handlers.ListClinicFollowups(db))
+			clinicGroup.POST("/followups", visitWriteRoles, handlers.CreateClinicFollowup(db))
+			clinicGroup.PATCH("/followups/:id/status", visitWriteRoles, handlers.UpdateClinicFollowupStatus(db))
+
+			// Pharmacy — Owner/Manager/Doctor
+			clinicGroup.GET("/pharmacy", visitWriteRoles, handlers.ListPharmacyItems(db))
+			clinicGroup.PATCH("/pharmacy/:id/dispense", visitWriteRoles, handlers.DispensePharmacyItem(db))
+
+			// Insurance routes — Owner/Manager only
+			insuranceRoles := middleware.RequireRoles(
+				models.UserRoleOwner, models.UserRoleManager,
+			)
 			insuranceGroup := clinicGroup.Group("/insurance")
 			{
-				insuranceGroup.GET("/coverage-preview", handlers.GetCoveragePreview(db))
-				insuranceGroup.GET("/claims", handlers.ListInsuranceClaims(db))
-				insuranceGroup.POST("/claims", handlers.CreateInsuranceClaim(db))
-				insuranceGroup.POST("/claims/:id/files", handlers.UploadClaimFile(db))
+				insuranceGroup.GET("/coverage-preview", insuranceRoles, handlers.GetCoveragePreview(db))
+				insuranceGroup.GET("/claims", insuranceRoles, handlers.ListInsuranceClaims(db))
+				insuranceGroup.POST("/claims", insuranceRoles, handlers.CreateInsuranceClaim(db))
+				insuranceGroup.POST("/claims/:id/files", insuranceRoles, handlers.UploadClaimFile(db))
 			}
 		}
 

@@ -39,8 +39,9 @@ type MerchantUser struct {
 	Role               UserRole     `gorm:"size:32;not null;index" json:"role"`
 	ActiveBusinessType BusinessType `gorm:"size:16;not null;index" json:"active_business_type"`
 	CanSwitch          bool         `gorm:"not null;default:false;index" json:"can_switch"`
-	Status             UserStatus   `gorm:"size:16;not null;default:'active';index" json:"status"`
-	CreatedAt          time.Time    `json:"created_at"`
+	Status                  UserStatus `gorm:"size:16;not null;default:'active';index" json:"status"`
+	ExternalEzyvetContactID *int64     `gorm:"uniqueIndex:idx_merchant_user_ezyvet" json:"external_ezyvet_contact_id"`
+	CreatedAt               time.Time  `json:"created_at"`
 	UpdatedAt          time.Time    `json:"updated_at"`
 
 	Tenant   Tenant            `gorm:"foreignKey:TenantID"`
