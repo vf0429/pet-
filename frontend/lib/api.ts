@@ -4,6 +4,8 @@
  * All protected endpoints require X-Session-ID and X-Business-Type headers
  */
 
+import { getPreferredLocale, translate } from '@/lib/i18n'
+
 const API_BASE_PATH = '/api/v1/merchant'
 
 // Types
@@ -2206,20 +2208,22 @@ function toPendingTaskVM(dto: PendingTaskBackendDTO): PendingTaskVM {
   })()
 
   // Derive title and summary from type + payload fields
+  const locale = getPreferredLocale()
+
   const title = (() => {
     switch (type) {
       case 'new_order':
-        return '新订单'
+        return translate(locale, 'New order', '新訂單')
       case 'new_appointment':
-        return '新预约'
+        return translate(locale, 'New appointment', '新預約')
       case 'sync_failed':
-        return '同步失败'
+        return translate(locale, 'Sync failed', '同步失敗')
       case 'followup_overdue':
-        return '待回访'
+        return translate(locale, 'Follow-up needed', '待回訪')
       case 'medical_record_pushed':
-        return '病历已推送'
+        return translate(locale, 'Medical record sent', '病歷已推送')
       default:
-        return '新通知'
+        return translate(locale, 'New notification', '新通知')
     }
   })()
 
@@ -2227,26 +2231,26 @@ function toPendingTaskVM(dto: PendingTaskBackendDTO): PendingTaskVM {
     switch (type) {
       case 'new_order': {
         const orderNo = (payloadObj.order_no as string) ?? (payloadObj.orderNo as string) ?? entityId
-        return `订单 ${orderNo} 已创建`
+        return translate(locale, 'Order {orderNo} created', '訂單 {orderNo} 已建立', { orderNo })
       }
       case 'new_appointment': {
         const petName = (payloadObj.pet_name as string) ?? (payloadObj.petName as string) ?? ''
-        return `预约 ${petName} 已创建`
+        return translate(locale, 'Appointment {petName} created', '預約 {petName} 已建立', { petName })
       }
       case 'sync_failed': {
         const errMsg = (payloadObj.error as string) ?? (payloadObj.message as string) ?? ''
-        return errMsg ? `同步失败: ${errMsg}` : '同步任务失败，请检查网络'
+        return errMsg ? translate(locale, 'Sync failed: {errMsg}', '同步失敗：{errMsg}', { errMsg }) : translate(locale, 'Sync task failed. Please check your network.', '同步任務失敗，請檢查網路。')
       }
       case 'followup_overdue': {
         const petName = (payloadObj.pet_name as string) ?? (payloadObj.petName as string) ?? ''
-        return `宠物 ${petName} 回访逾期`
+        return translate(locale, 'Follow-up overdue for {petName}', '寵物 {petName} 回訪逾期', { petName })
       }
       case 'medical_record_pushed': {
         const petName = (payloadObj.pet_name as string) ?? (payloadObj.petName as string) ?? ''
-        return `宠物 ${petName} 病历已推送至 App`
+        return translate(locale, 'Medical record for {petName} has been pushed to the app', '寵物 {petName} 的病歷已推送至 App', { petName })
       }
       default:
-        return payloadObj.message as string ?? payloadObj.summary as string ?? '您有新的待处理任务'
+        return (payloadObj.message as string) ?? (payloadObj.summary as string) ?? translate(locale, 'You have a new task to process', '你有新的待處理任務')
     }
   })()
 
@@ -2566,4 +2570,511 @@ export async function getClinicAnalytics(
   )
 
   return toClinicAnalyticsVM(unwrapAnalyticsResponse(response))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Clinic Clients
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ClinicClientDTO {
+  id: number
+  first_name: string
+  last_name: string
+  phone: string
+  email: string
+  active: boolean
+  patient_count: number
+  created_at: string
+}
+
+export interface ClinicClientDetailDTO {
+  id: number
+  first_name: string
+  last_name: string
+  phone: string
+  email: string
+  address: string
+  notes: string
+  active: boolean
+  created_at: string
+}
+
+export interface ClinicClientPatientDTO {
+  id: number
+  name: string
+  species: string
+  breed: string
+  gender: string
+  date_of_birth: string | null
+  is_deceased: boolean
+}
+
+export interface ClinicClientVM {
+  id: number
+  fullName: string
+  phone: string
+  email: string
+  active: boolean
+  patientCount: number
+  createdAt: string
+}
+
+export interface ClinicClientDetailVM {
+  id: number
+  fullName: string
+  firstName: string
+  lastName: string
+  phone: string
+  email: string
+  address: string
+  notes: string
+  active: boolean
+  createdAt: string
+  patients: ClinicClientPatientVM[]
+}
+
+export interface ClinicClientPatientVM {
+  id: number
+  name: string
+  species: string
+  breed: string
+  gender: string
+  dateOfBirth: string | null
+  isDeceased: boolean
+}
+
+function toClinicClientVM(d: ClinicClientDTO): ClinicClientVM {
+  return {
+    id: d.id,
+    fullName: `${d.first_name} ${d.last_name}`.trim(),
+    phone: d.phone,
+    email: d.email,
+    active: d.active,
+    patientCount: d.patient_count,
+    createdAt: d.created_at,
+  }
+}
+
+function toClinicClientPatientVM(d: ClinicClientPatientDTO): ClinicClientPatientVM {
+  return {
+    id: d.id,
+    name: d.name,
+    species: d.species,
+    breed: d.breed,
+    gender: d.gender,
+    dateOfBirth: d.date_of_birth,
+    isDeceased: d.is_deceased,
+  }
+}
+
+export interface ListClinicClientsParams {
+  q?: string
+  page?: number
+  per_page?: number
+}
+
+export interface ListClinicClientsResult {
+  clients: ClinicClientVM[]
+  total: number
+  page: number
+  perPage: number
+  hasMore: boolean
+}
+
+export async function listClinicClients(
+  params: ListClinicClientsParams = {}
+): Promise<ListClinicClientsResult> {
+  const qs = new URLSearchParams()
+  if (params.q) qs.set('q', params.q)
+  if (params.page) qs.set('page', String(params.page))
+  if (params.per_page) qs.set('per_page', String(params.per_page))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+
+  const response = await apiFetch<ApiEnvelopeDTO<{
+    clients: ClinicClientDTO[]
+    total: number
+    page: number
+    per_page: number
+    has_more: boolean
+  }>>(`/clinic/clients${query}`, {
+    method: 'GET',
+    headers: { 'X-Business-Type': 'clinic' },
+  })
+
+  const data = response.data
+  return {
+    clients: data.clients.map(toClinicClientVM),
+    total: data.total,
+    page: data.page,
+    perPage: data.per_page,
+    hasMore: data.has_more,
+  }
+}
+
+export async function getClinicClientDetail(id: number): Promise<ClinicClientDetailVM> {
+  const response = await apiFetch<ApiEnvelopeDTO<{
+    client: ClinicClientDetailDTO
+    patients: ClinicClientPatientDTO[]
+  }>>(`/clinic/clients/${id}`, {
+    method: 'GET',
+    headers: { 'X-Business-Type': 'clinic' },
+  })
+
+  const { client, patients } = response.data
+  return {
+    id: client.id,
+    fullName: `${client.first_name} ${client.last_name}`.trim(),
+    firstName: client.first_name,
+    lastName: client.last_name,
+    phone: client.phone,
+    email: client.email,
+    address: client.address,
+    notes: client.notes,
+    active: client.active,
+    createdAt: client.created_at,
+    patients: patients.map(toClinicClientPatientVM),
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Clinic Patients
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ClinicPatientListDTO {
+  id: number
+  name: string
+  species: string
+  breed: string
+  gender: string
+  date_of_birth: string | null
+  weight: number
+  weight_unit: string
+  is_deceased: boolean
+  microchip: string
+  owner_name: string
+  owner_phone: string
+  last_visit_at: string | null
+  pending_reminders_count: number
+}
+
+export interface ClinicPatientDetailDTO {
+  id: number
+  name: string
+  species: string
+  breed: string
+  gender: string
+  date_of_birth: string | null
+  weight: number
+  weight_unit: string
+  is_deceased: boolean
+  microchip: string
+  notes: string
+  notes_important: string
+}
+
+export interface ClinicPatientOwnerDTO {
+  id: number
+  first_name: string
+  last_name: string
+  phone: string
+  email: string
+}
+
+export interface ClinicPatientVisitSummaryDTO {
+  id: number
+  consult_date: string
+  chief_complaint: string
+  status: string
+}
+
+export interface ClinicPatientReminderSummaryDTO {
+  id: number
+  name: string
+  category: string
+  due_at: string | null
+  last_fulfilled_at: string | null
+}
+
+export interface ClinicPatientListVM {
+  id: number
+  name: string
+  species: string
+  breed: string
+  gender: string
+  dateOfBirth: string | null
+  weight: number
+  weightUnit: string
+  isDeceased: boolean
+  microchip: string
+  ownerName: string
+  ownerPhone: string
+  lastVisitAt: string | null
+  pendingRemindersCount: number
+}
+
+export interface ClinicPatientDetailVM {
+  id: number
+  name: string
+  species: string
+  breed: string
+  gender: string
+  dateOfBirth: string | null
+  weight: number
+  weightUnit: string
+  isDeceased: boolean
+  microchip: string
+  notes: string
+  notesImportant: string
+  owner: {
+    id: number
+    fullName: string
+    phone: string
+    email: string
+  }
+  recentVisits: {
+    id: number
+    consultDate: string
+    chiefComplaint: string
+    status: string
+  }[]
+  reminders: {
+    id: number
+    name: string
+    category: string
+    dueAt: string | null
+    lastFulfilledAt: string | null
+  }[]
+}
+
+function toClinicPatientListVM(d: ClinicPatientListDTO): ClinicPatientListVM {
+  return {
+    id: d.id,
+    name: d.name,
+    species: d.species,
+    breed: d.breed,
+    gender: d.gender,
+    dateOfBirth: d.date_of_birth,
+    weight: d.weight,
+    weightUnit: d.weight_unit,
+    isDeceased: d.is_deceased,
+    microchip: d.microchip,
+    ownerName: d.owner_name,
+    ownerPhone: d.owner_phone,
+    lastVisitAt: d.last_visit_at,
+    pendingRemindersCount: d.pending_reminders_count,
+  }
+}
+
+export interface ListClinicPatientsParams {
+  q?: string
+  client_id?: number
+  page?: number
+  per_page?: number
+}
+
+export interface ListClinicPatientsResult {
+  patients: ClinicPatientListVM[]
+  total: number
+  page: number
+  perPage: number
+  hasMore: boolean
+}
+
+export async function listClinicPatients(
+  params: ListClinicPatientsParams = {}
+): Promise<ListClinicPatientsResult> {
+  const qs = new URLSearchParams()
+  if (params.q) qs.set('q', params.q)
+  if (params.client_id) qs.set('client_id', String(params.client_id))
+  if (params.page) qs.set('page', String(params.page))
+  if (params.per_page) qs.set('per_page', String(params.per_page))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+
+  const response = await apiFetch<ApiEnvelopeDTO<{
+    patients: ClinicPatientListDTO[]
+    total: number
+    page: number
+    per_page: number
+    has_more: boolean
+  }>>(`/clinic/patients${query}`, {
+    method: 'GET',
+    headers: { 'X-Business-Type': 'clinic' },
+  })
+
+  const data = response.data
+  return {
+    patients: data.patients.map(toClinicPatientListVM),
+    total: data.total,
+    page: data.page,
+    perPage: data.per_page,
+    hasMore: data.has_more,
+  }
+}
+
+export async function getClinicPatientDetail(id: number): Promise<ClinicPatientDetailVM> {
+  const response = await apiFetch<ApiEnvelopeDTO<{
+    patient: ClinicPatientDetailDTO
+    owner: ClinicPatientOwnerDTO
+    recent_visits: ClinicPatientVisitSummaryDTO[]
+    reminders: ClinicPatientReminderSummaryDTO[]
+  }>>(`/clinic/patients/${id}`, {
+    method: 'GET',
+    headers: { 'X-Business-Type': 'clinic' },
+  })
+
+  const { patient, owner, recent_visits, reminders } = response.data
+  return {
+    id: patient.id,
+    name: patient.name,
+    species: patient.species,
+    breed: patient.breed,
+    gender: patient.gender,
+    dateOfBirth: patient.date_of_birth,
+    weight: patient.weight,
+    weightUnit: patient.weight_unit,
+    isDeceased: patient.is_deceased,
+    microchip: patient.microchip,
+    notes: patient.notes,
+    notesImportant: patient.notes_important,
+    owner: {
+      id: owner.id,
+      fullName: `${owner.first_name} ${owner.last_name}`.trim(),
+      phone: owner.phone,
+      email: owner.email,
+    },
+    recentVisits: recent_visits.map((v) => ({
+      id: v.id,
+      consultDate: v.consult_date,
+      chiefComplaint: v.chief_complaint,
+      status: v.status,
+    })),
+    reminders: reminders.map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      dueAt: r.due_at,
+      lastFulfilledAt: r.last_fulfilled_at,
+    })),
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Clinic Health Reminders
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ReminderStatus = 'overdue' | 'upcoming' | 'fulfilled' | ''
+
+export interface HealthReminderDTO {
+  id: number
+  patient_id: number
+  patient_name: string
+  owner_name: string
+  category: string
+  name: string
+  importance: string
+  due_at: string | null
+  last_fulfilled_at: string | null
+  days_until_due: number | null
+}
+
+export interface HealthReminderVM {
+  id: number
+  patientId: number
+  patientName: string
+  ownerName: string
+  category: string
+  name: string
+  importance: string
+  dueAt: string | null
+  lastFulfilledAt: string | null
+  daysUntilDue: number | null
+}
+
+export interface ReminderTabCounts {
+  overdue: number
+  upcoming: number
+  fulfilled: number
+}
+
+export interface ListRemindersResult {
+  reminders: HealthReminderVM[]
+  total: number
+  page: number
+  perPage: number
+  hasMore: boolean
+  counts: ReminderTabCounts
+}
+
+function toHealthReminderVM(d: HealthReminderDTO): HealthReminderVM {
+  return {
+    id: d.id,
+    patientId: d.patient_id,
+    patientName: d.patient_name,
+    ownerName: d.owner_name,
+    category: d.category,
+    name: d.name,
+    importance: d.importance,
+    dueAt: d.due_at,
+    lastFulfilledAt: d.last_fulfilled_at,
+    daysUntilDue: d.days_until_due,
+  }
+}
+
+export interface ListRemindersParams {
+  status?: ReminderStatus
+  page?: number
+  per_page?: number
+}
+
+export async function listClinicReminders(
+  params: ListRemindersParams = {}
+): Promise<ListRemindersResult> {
+  const qs = new URLSearchParams()
+  if (params.status) qs.set('status', params.status)
+  if (params.page) qs.set('page', String(params.page))
+  if (params.per_page) qs.set('per_page', String(params.per_page))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+
+  const response = await apiFetch<ApiEnvelopeDTO<{
+    reminders: HealthReminderDTO[]
+    total: number
+    page: number
+    per_page: number
+    has_more: boolean
+    counts: ReminderTabCounts
+  }>>(`/clinic/reminders${query}`, {
+    method: 'GET',
+    headers: { 'X-Business-Type': 'clinic' },
+  })
+
+  const data = response.data
+  return {
+    reminders: data.reminders.map(toHealthReminderVM),
+    total: data.total,
+    page: data.page,
+    perPage: data.per_page,
+    hasMore: data.has_more,
+    counts: data.counts,
+  }
+}
+
+export async function fulfillClinicReminder(
+  id: number,
+  fulfilledAt?: string
+): Promise<{ id: number; lastFulfilledAt: string }> {
+  const body = fulfilledAt ? { fulfilled_at: fulfilledAt } : {}
+  const response = await apiFetch<ApiEnvelopeDTO<{
+    id: number
+    last_fulfilled_at: string
+    updated_at: string
+  }>>(`/clinic/reminders/${id}`, {
+    method: 'PATCH',
+    headers: { 'X-Business-Type': 'clinic' },
+    body: JSON.stringify(body),
+  })
+
+  return {
+    id: response.data.id,
+    lastFulfilledAt: response.data.last_fulfilled_at,
+  }
 }

@@ -17,6 +17,12 @@ import {
   getInsuranceClaims,
   createInsuranceClaim,
   uploadInsuranceClaimFile,
+  listClinicClients,
+  getClinicClientDetail,
+  listClinicPatients,
+  getClinicPatientDetail,
+  listClinicReminders,
+  fulfillClinicReminder,
   ClinicStatsVM,
   ClinicAppointmentVM,
   ClinicVisitVM,
@@ -36,6 +42,16 @@ import {
   InsuranceClaimVM,
   InsuranceClaimStatus,
   CreateInsuranceClaimParams,
+  ClinicClientVM,
+  ClinicClientDetailVM,
+  ClinicPatientListVM,
+  ClinicPatientDetailVM,
+  HealthReminderVM,
+  ReminderTabCounts,
+  ReminderStatus,
+  ListClinicClientsParams,
+  ListClinicPatientsParams,
+  ListRemindersParams,
   ApiError,
 } from '@/lib/api'
 
@@ -644,5 +660,269 @@ export const useClinicInsuranceStore = create<ClinicInsuranceState>((set, get) =
       claimsHasMore: false,
       claimsError: null,
     })
+  },
+}))
+
+// ----- Clinic Clients Store -----
+
+interface ClinicClientsState {
+  clients: ClinicClientVM[]
+  total: number
+  page: number
+  perPage: number
+  hasMore: boolean
+  search: string
+  isLoading: boolean
+  error: string | null
+  detail: ClinicClientDetailVM | null
+  isLoadingDetail: boolean
+  detailError: string | null
+
+  fetchClients: (params?: ListClinicClientsParams) => Promise<void>
+  fetchClientDetail: (id: number) => Promise<void>
+  setSearch: (q: string) => void
+  setPage: (page: number) => void
+  clearDetail: () => void
+  clearClients: () => void
+}
+
+export const useClinicClientsStore = create<ClinicClientsState>((set, get) => ({
+  clients: [],
+  total: 0,
+  page: 1,
+  perPage: 20,
+  hasMore: false,
+  search: '',
+  isLoading: false,
+  error: null,
+  detail: null,
+  isLoadingDetail: false,
+  detailError: null,
+
+  fetchClients: async (params?: ListClinicClientsParams) => {
+    set({ isLoading: true, error: null })
+    try {
+      const data = await listClinicClients({
+        q: params?.q ?? (get().search || undefined),
+        page: params?.page ?? get().page,
+        per_page: params?.per_page ?? get().perPage,
+      })
+      set({
+        clients: data.clients,
+        total: data.total,
+        page: data.page,
+        perPage: data.perPage,
+        hasMore: data.hasMore,
+        isLoading: false,
+      })
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Failed to load clients'
+      set({ error: message, isLoading: false })
+    }
+  },
+
+  fetchClientDetail: async (id: number) => {
+    set({ isLoadingDetail: true, detailError: null })
+    try {
+      const detail = await getClinicClientDetail(id)
+      set({ detail, isLoadingDetail: false })
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Failed to load client detail'
+      set({ detailError: message, isLoadingDetail: false })
+    }
+  },
+
+  setSearch: (q) => {
+    set({ search: q, page: 1 })
+  },
+
+  setPage: (page) => {
+    set({ page })
+  },
+
+  clearDetail: () => {
+    set({ detail: null, detailError: null })
+  },
+
+  clearClients: () => {
+    set({ clients: [], total: 0, page: 1, hasMore: false, error: null })
+  },
+}))
+
+// ----- Clinic Patients Store -----
+
+interface ClinicPatientsState {
+  patients: ClinicPatientListVM[]
+  total: number
+  page: number
+  perPage: number
+  hasMore: boolean
+  search: string
+  clientIdFilter: number | null
+  isLoading: boolean
+  error: string | null
+  detail: ClinicPatientDetailVM | null
+  isLoadingDetail: boolean
+  detailError: string | null
+
+  fetchPatients: (params?: ListClinicPatientsParams) => Promise<void>
+  fetchPatientDetail: (id: number) => Promise<void>
+  setSearch: (q: string) => void
+  setClientIdFilter: (clientId: number | null) => void
+  setPage: (page: number) => void
+  clearDetail: () => void
+  clearPatients: () => void
+}
+
+export const useClinicPatientsStore = create<ClinicPatientsState>((set, get) => ({
+  patients: [],
+  total: 0,
+  page: 1,
+  perPage: 20,
+  hasMore: false,
+  search: '',
+  clientIdFilter: null,
+  isLoading: false,
+  error: null,
+  detail: null,
+  isLoadingDetail: false,
+  detailError: null,
+
+  fetchPatients: async (params?: ListClinicPatientsParams) => {
+    set({ isLoading: true, error: null })
+    try {
+      const data = await listClinicPatients({
+        q: params?.q ?? (get().search || undefined),
+        client_id: params?.client_id ?? (get().clientIdFilter ?? undefined),
+        page: params?.page ?? get().page,
+        per_page: params?.per_page ?? get().perPage,
+      })
+      set({
+        patients: data.patients,
+        total: data.total,
+        page: data.page,
+        perPage: data.perPage,
+        hasMore: data.hasMore,
+        isLoading: false,
+      })
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Failed to load patients'
+      set({ error: message, isLoading: false })
+    }
+  },
+
+  fetchPatientDetail: async (id: number) => {
+    set({ isLoadingDetail: true, detailError: null })
+    try {
+      const detail = await getClinicPatientDetail(id)
+      set({ detail, isLoadingDetail: false })
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Failed to load patient detail'
+      set({ detailError: message, isLoadingDetail: false })
+    }
+  },
+
+  setSearch: (q) => {
+    set({ search: q, page: 1 })
+  },
+
+  setClientIdFilter: (clientId) => {
+    set({ clientIdFilter: clientId, page: 1 })
+  },
+
+  setPage: (page) => {
+    set({ page })
+  },
+
+  clearDetail: () => {
+    set({ detail: null, detailError: null })
+  },
+
+  clearPatients: () => {
+    set({ patients: [], total: 0, page: 1, hasMore: false, error: null })
+  },
+}))
+
+// ----- Clinic Reminders Store -----
+
+interface ClinicRemindersState {
+  reminders: HealthReminderVM[]
+  total: number
+  page: number
+  perPage: number
+  hasMore: boolean
+  activeTab: ReminderStatus
+  counts: ReminderTabCounts
+  isLoading: boolean
+  error: string | null
+  isFulfilling: boolean
+  fulfillError: string | null
+
+  fetchReminders: (params?: ListRemindersParams) => Promise<void>
+  fulfillReminder: (id: number, fulfilledAt?: string) => Promise<void>
+  setActiveTab: (tab: ReminderStatus) => void
+  setPage: (page: number) => void
+  clearReminders: () => void
+}
+
+export const useClinicRemindersStore = create<ClinicRemindersState>((set, get) => ({
+  reminders: [],
+  total: 0,
+  page: 1,
+  perPage: 20,
+  hasMore: false,
+  activeTab: 'overdue',
+  counts: { overdue: 0, upcoming: 0, fulfilled: 0 },
+  isLoading: false,
+  error: null,
+  isFulfilling: false,
+  fulfillError: null,
+
+  fetchReminders: async (params?: ListRemindersParams) => {
+    set({ isLoading: true, error: null })
+    try {
+      const data = await listClinicReminders({
+        status: params?.status ?? get().activeTab,
+        page: params?.page ?? get().page,
+        per_page: params?.per_page ?? get().perPage,
+      })
+      set({
+        reminders: data.reminders,
+        total: data.total,
+        page: data.page,
+        perPage: data.perPage,
+        hasMore: data.hasMore,
+        counts: data.counts,
+        isLoading: false,
+      })
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Failed to load reminders'
+      set({ error: message, isLoading: false })
+    }
+  },
+
+  fulfillReminder: async (id: number, fulfilledAt?: string) => {
+    set({ isFulfilling: true, fulfillError: null })
+    try {
+      await fulfillClinicReminder(id, fulfilledAt)
+      await get().fetchReminders()
+      set({ isFulfilling: false })
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Failed to mark reminder as done'
+      set({ fulfillError: message, isFulfilling: false })
+      throw error
+    }
+  },
+
+  setActiveTab: (tab) => {
+    set({ activeTab: tab, page: 1 })
+  },
+
+  setPage: (page) => {
+    set({ page })
+  },
+
+  clearReminders: () => {
+    set({ reminders: [], total: 0, page: 1, hasMore: false, error: null, fulfillError: null })
   },
 }))
