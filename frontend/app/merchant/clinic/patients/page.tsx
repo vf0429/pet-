@@ -1,12 +1,15 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
+import CreatePatientModal from '@/components/clinic/CreatePatientModal'
 import { useI18n } from '@/lib/i18n'
 import { useClinicPatientsStore } from '@/store/clinic'
 
 export default function PatientsPage() {
+  const router = useRouter()
   const {
     patients,
     total,
@@ -23,6 +26,7 @@ export default function PatientsPage() {
 
   const { pick } = useI18n()
   const [searchInput, setSearchInput] = useState(search)
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   useEffect(() => {
     fetchPatients()
@@ -52,6 +56,13 @@ export default function PatientsPage() {
               {pick('View and manage all clinic patients.', '查看和管理所有診所患者。')}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+          >
+            {pick('+ Add Patient', '+ 新增患者')}
+          </button>
         </div>
       </div>
 
@@ -190,6 +201,15 @@ export default function PatientsPage() {
           </>
         )}
       </div>
+
+      {showCreateModal && (
+        <CreatePatientModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={(newId) => {
+            router.push(`/merchant/clinic/patients/${newId}`)
+          }}
+        />
+      )}
     </div>
   )
 }

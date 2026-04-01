@@ -8,6 +8,7 @@ import { usePendingTasks } from '@/hooks/usePendingTasks'
 import KPICard from '@/components/KPICard'
 import StatusBadge from '@/components/StatusBadge'
 import SyncStatusCard from '@/components/SyncStatusCard'
+import { useI18n } from '@/lib/i18n'
 
 export default function ShopDashboardPage() {
   const {
@@ -26,7 +27,8 @@ export default function ShopDashboardPage() {
   // Phase 4B: Start pending tasks polling and get sync status
   const { syncStatus, isLoadingSyncStatus, fetchSyncStatus } = useMerchantRealtimeStore()
   usePendingTasks('shop')
-  
+  const { pick, formatCurrency, formatDateTime } = useI18n()
+
   // Fetch sync status on mount
   useEffect(() => {
     fetchSyncStatus('shop')
@@ -36,38 +38,22 @@ export default function ShopDashboardPage() {
     fetchDashboardData()
   }, [fetchDashboardData])
 
-  const formatPrice = (amount: number, currency: string = 'HKD') => {
-    return new Intl.NumberFormat('zh-HK', {
-      style: 'currency',
-      currency,
-    }).format(amount)
-  }
-
-  const formatDateTime = (isoString: string) => {
-    const date = new Date(isoString)
-    return date.toLocaleString('zh-HK', {
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Shop Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-500">Overview of your shop performance</p>
+        <p className="mt-1 text-sm text-slate-500">{pick('Overview of your shop performance', '查看商店整體營運表現')}</p>
       </div>
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KPICard
-          title="今日订单"
+          title={pick('Orders today', '今日訂單')}
           value={stats?.todayOrders ?? '-'}
           delta={stats?.todayOrdersDeltaPct}
-          deltaLabel="vs 昨天"
+          deltaLabel={pick('vs yesterday', '較昨日')}
           isLoading={isLoadingStats}
           href="/merchant/shop/orders"
           icon={
@@ -77,10 +63,10 @@ export default function ShopDashboardPage() {
           }
         />
         <KPICard
-          title="今日营收"
-          value={stats ? formatPrice(stats.todayRevenue, stats.currency) : '-'}
+          title={pick('Revenue today', '今日營收')}
+          value={stats ? formatCurrency(stats.todayRevenue, stats.currency) : '-'}
           delta={stats?.todayRevenueDeltaPct}
-          deltaLabel="vs 昨天"
+          deltaLabel={pick('vs yesterday', '較昨日')}
           isLoading={isLoadingStats}
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -89,7 +75,7 @@ export default function ShopDashboardPage() {
           }
         />
         <KPICard
-          title="待发货"
+          title={pick('Pending shipment', '待出貨')}
           value={stats?.pendingShipmentCount ?? '-'}
           isLoading={isLoadingStats}
           href="/merchant/shop/orders?status=paid"
@@ -100,7 +86,7 @@ export default function ShopDashboardPage() {
           }
         />
         <KPICard
-          title="低库存"
+          title={pick('Low stock', '低庫存')}
           value={stats?.lowStockCount ?? '-'}
           isLoading={isLoadingStats}
           href="/merchant/shop/products?low_stock_only=true"
@@ -121,7 +107,7 @@ export default function ShopDashboardPage() {
             onClick={fetchDashboardData}
             className="mt-2 text-sm font-medium text-rose-700 underline"
           >
-            重试
+            {pick('Retry', '重試')}
           </button>
         </div>
       )}
@@ -132,12 +118,12 @@ export default function ShopDashboardPage() {
         <div className="lg:col-span-2">
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <h2 className="text-lg font-semibold text-slate-900">近期订单</h2>
+              <h2 className="text-lg font-semibold text-slate-900">{pick('Recent orders', '近期訂單')}</h2>
               <Link
                 href="/merchant/shop/orders"
                 className="text-sm font-medium text-sky-600 hover:text-sky-700"
               >
-                查看全部
+                {pick('View all', '查看全部')}
               </Link>
             </div>
 
@@ -164,12 +150,12 @@ export default function ShopDashboardPage() {
                   onClick={() => useShopDashboardStore.getState().fetchRecentOrders()}
                   className="mt-2 text-sm font-medium text-sky-600"
                 >
-                  重试
+                  {pick('Retry', '重試')}
                 </button>
               </div>
             ) : recentOrders.length === 0 ? (
               <div className="p-8 text-center">
-                <p className="text-sm text-slate-500">暂无订单数据</p>
+                <p className="text-sm text-slate-500">{pick('No orders yet', '目前沒有訂單資料')}</p>
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
@@ -196,7 +182,7 @@ export default function ShopDashboardPage() {
                     </div>
                     <div className="text-right">
                       <p className="font-medium text-slate-900">
-                        {formatPrice(order.totalAmount, order.currency)}
+                        {formatCurrency(order.totalAmount, order.currency)}
                       </p>
                       <StatusBadge status={order.status} size="sm" />
                     </div>
@@ -211,12 +197,12 @@ export default function ShopDashboardPage() {
         <div>
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <h2 className="text-lg font-semibold text-slate-900">低库存预警</h2>
+              <h2 className="text-lg font-semibold text-slate-900">{pick('Low stock alerts', '低庫存提醒')}</h2>
               <Link
                 href="/merchant/shop/products?low_stock_only=true"
                 className="text-sm font-medium text-sky-600 hover:text-sky-700"
               >
-                查看全部
+                {pick('View all', '查看全部')}
               </Link>
             </div>
 
@@ -242,12 +228,12 @@ export default function ShopDashboardPage() {
                   onClick={() => useShopDashboardStore.getState().fetchInventoryAlerts()}
                   className="mt-2 text-sm font-medium text-sky-600"
                 >
-                  重试
+                  {pick('Retry', '重試')}
                 </button>
               </div>
             ) : inventoryAlerts.length === 0 ? (
               <div className="p-8 text-center">
-                <p className="text-sm text-slate-500">暂无低库存商品</p>
+                <p className="text-sm text-slate-500">{pick('No low-stock items', '目前沒有低庫存商品')}</p>
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
@@ -271,12 +257,12 @@ export default function ShopDashboardPage() {
                     <div className="flex-1">
                       <p className="font-medium text-slate-900">{alert.name}</p>
                       <p className="text-xs text-slate-500">
-                        库存 {alert.stockLevel} / 阈值 {alert.lowStockThreshold}
+                        {pick('Stock {stock} / threshold {threshold}', '庫存 {stock} / 門檻 {threshold}', { stock: alert.stockLevel, threshold: alert.lowStockThreshold })}
                       </p>
                     </div>
                     <div className="text-right">
                       <span className="inline-flex items-center rounded-full bg-rose-50 px-2 py-1 text-xs font-medium text-rose-600">
-                        缺 {alert.shortageCount}
+                        {pick('Short by {count}', '短缺 {count}', { count: alert.shortageCount })}
                       </span>
                     </div>
                   </Link>

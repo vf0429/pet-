@@ -19,6 +19,7 @@ import {
 } from 'recharts'
 
 import { ClinicAnalyticsVM } from '@/lib/api'
+import { useI18n } from '@/lib/i18n'
 
 const PIE_COLORS = ['#0891B2', '#06B6D4', '#22D3EE', '#67E8F9', '#A5F3FC']
 
@@ -39,6 +40,7 @@ function ChartCard({ title, children }: { title: string; children: ReactNode }) 
 }
 
 export default function ClinicAnalyticsCharts({ data }: { data: ClinicAnalyticsVM }) {
+  const { pick } = useI18n()
   const weekKeys = Array.from(
     new Set(
       data.doctorWorkload.flatMap((item) =>
@@ -50,19 +52,19 @@ export default function ClinicAnalyticsCharts({ data }: { data: ClinicAnalyticsV
   return (
     <div className="space-y-6">
       <div className="grid gap-6 xl:grid-cols-2">
-        <ChartCard title="日就诊量趋势">
+        <ChartCard title={pick('Daily visit trend', '每日就診趨勢')}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data.dailyVisits}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
               <XAxis dataKey="date" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-              <Tooltip formatter={(value) => [formatNumericValue(value).toFixed(1), '就诊量']} />
+              <Tooltip formatter={(value) => [formatNumericValue(value).toFixed(1), pick('Visits', '就診量')]} />
               <Line type="monotone" dataKey="visits" stroke="#0891B2" strokeWidth={3} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="病种分布">
+        <ChartCard title={pick('Diagnosis distribution', '病種分佈')}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={data.diagnosisBreakdown} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={90}>
@@ -70,14 +72,14 @@ export default function ClinicAnalyticsCharts({ data }: { data: ClinicAnalyticsV
                   <Cell key={`${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => [formatNumericValue(value).toFixed(1), '数量']} />
+              <Tooltip formatter={(value) => [formatNumericValue(value).toFixed(1), pick('Count', '數量')]} />
             </PieChart>
           </ResponsiveContainer>
         </ChartCard>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <ChartCard title="医生工作负载">
+        <ChartCard title={pick('Doctor workload', '醫生工作負載')}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data.doctorWorkload}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
@@ -97,16 +99,16 @@ export default function ClinicAnalyticsCharts({ data }: { data: ClinicAnalyticsV
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="预约到场率">
+        <ChartCard title={pick('Appointment attendance', '預約到場率')}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data.appointmentAttendance} layout="vertical" margin={{ left: 12 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
               <XAxis type="number" tick={{ fontSize: 12 }} allowDecimals={false} />
               <YAxis dataKey="date" type="category" tick={{ fontSize: 12 }} width={92} />
-              <Tooltip formatter={(value, name) => [formatNumericValue(value).toFixed(1), name === 'checkedIn' ? '到场' : name === 'confirmed' ? '预约' : '值']} />
+              <Tooltip formatter={(value, name) => [formatNumericValue(value).toFixed(1), name === 'checkedIn' ? pick('Checked in', '到場') : name === 'confirmed' ? pick('Confirmed', '預約') : pick('Value', '數值')]} />
               <Legend />
-              <Bar dataKey="confirmed" fill="#0891B2" radius={[0, 8, 8, 0]} />
-              <Bar dataKey="checkedIn" fill="#67E8F9" radius={[0, 8, 8, 0]} />
+              <Bar dataKey="confirmed" fill="#0891B2" radius={[0, 8, 8, 0]} name={pick('Confirmed', '預約')} />
+              <Bar dataKey="checkedIn" fill="#67E8F9" radius={[0, 8, 8, 0]} name={pick('Checked in', '到場')} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>

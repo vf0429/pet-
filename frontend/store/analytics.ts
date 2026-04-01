@@ -11,6 +11,7 @@ import {
   getClinicAnalytics,
   getShopAnalytics,
 } from '@/lib/api'
+import { getPreferredLocale, translate } from '@/lib/i18n'
 
 interface ShopAnalyticsState {
   period: AnalyticsPeriod
@@ -48,7 +49,7 @@ export const useShopAnalyticsStore = create<ShopAnalyticsState>((set, get) => ({
       const data = await getShopAnalytics({ ...params, period })
       set({ data, isLoading: false, period })
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : '数据加载失败'
+      const message = error instanceof ApiError ? error.message : translate(getPreferredLocale(), 'Unable to load data', '資料載入失敗')
       set({ error: message, isLoading: false, period })
     }
   },
@@ -72,7 +73,7 @@ export const useClinicAnalyticsStore = create<ClinicAnalyticsState>((set, get) =
       const data = await getClinicAnalytics({ ...params, period })
       set({ data, isLoading: false, period })
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : '数据加载失败'
+      const message = error instanceof ApiError ? error.message : translate(getPreferredLocale(), 'Unable to load data', '資料載入失敗')
       set({ error: message, isLoading: false, period })
     }
   },

@@ -1,6 +1,8 @@
 'use client'
 
 import { AnalyticsPeriod } from '@/lib/api'
+import { useI18n } from '@/lib/i18n'
+import { getAnalyticsPeriodLabel } from '@/lib/i18n-labels'
 
 interface AnalyticsToolbarProps {
   title: string
@@ -10,9 +12,9 @@ interface AnalyticsToolbarProps {
   isLoading?: boolean
 }
 
-const PERIOD_OPTIONS: Array<{ label: string; value: AnalyticsPeriod }> = [
-  { label: '7天', value: '7d' },
-  { label: '30天', value: '30d' },
+const PERIOD_OPTIONS: Array<{ value: AnalyticsPeriod }> = [
+  { value: '7d' },
+  { value: '30d' },
 ]
 
 export default function AnalyticsToolbar({
@@ -22,10 +24,12 @@ export default function AnalyticsToolbar({
   onPeriodChange,
   isLoading = false,
 }: AnalyticsToolbarProps) {
+  const { locale, pick } = useI18n()
+
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <p className="text-sm font-medium text-slate-500">Merchant / Analytics</p>
+        <p className="text-sm font-medium text-slate-500">{pick('Merchant / Analytics', '商戶 / 數據分析')}</p>
         <h1 className="mt-1 text-2xl font-bold text-slate-900">{title}</h1>
         <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
       </div>
@@ -45,7 +49,7 @@ export default function AnalyticsToolbar({
                   : 'text-slate-500 hover:text-slate-900'
               } disabled:cursor-not-allowed disabled:opacity-60`}
             >
-              {option.label}
+              {getAnalyticsPeriodLabel(locale, option.value)}
             </button>
           )
         })}

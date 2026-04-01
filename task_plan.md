@@ -196,3 +196,60 @@ ClinicIntegrationBinding表（唯一索引clinic_integration_id）
 - [completed] 生成 `tests/phase5/phase5_p0.spec.ts`
 - [completed] 生成 `docs/phase5_test_report.md` 骨架
 - [issue] 当前仓库未发现 analytics backend/frontend 实现文件，QA 资产暂处 prepared/not executed 状态
+
+---
+
+## Phase 6 — Clinic Flow 闭环 & 权限修复 (2026-03-29)
+
+### 背景
+经过产品审查，发现以下核心问题：
+1. Visit 结案后 Appointment 不会自动变 completed → 流程断链
+2. Visit 状态机强制 treated → prescription_done → closed，打疫苗/简单问诊无法直接结案
+3. 后端虽定义了 5 种角色，但所有 clinic API 均无角色鉴权，角色等同摆设
+4. 前端 Visit 页面状态按钮未反映可跳过处方的路径
+
+### 计划任务
+
+#### FIX-1 [P0] Visit 状态机扩展（允许多条结案路径）
+**文件**: `backend/models/visit_state_machine.go`
+**变更**: 增加以下合法跳跃路径
+- `in_progress → closed`（疫苗/极简问诊）
+- `diagnosed → closed`（只有诊断，无需处置/处方）
+- `treated → closed`（处置完成，无需处方）
+- 原有路径全部保留
+- [completed] ✅ go build 通过
+
+#### FIX-2 [P0] Visit 结案 → Appointment 自动 completed 联动
+**文件**: `backend/handlers/clinic_visits.go`
+**变更**: 在 `UpdateClinicVisit` 事务内，当 `targetStatus == closed` 时，
+自动把关联的 `ClinicAppointment` 状态从 `in_progress → completed`
+- [completed] ✅ go build 通过
+
+#### FIX-3 [P1] 后端角色权限中间件
+**文件**: `backend/middleware/role_check.go`（新建）
+**变更**: 新增 `RequireRoles(...UserRole)` + `RequireAppointmentStatusRole()` gin 中间件
+- [completed] ✅ go build 通过
+
+#### FIX-4 [P1] 路由挂载角色鉴权
+**文件**: `backend/cmd/server/main.go` + `backend/handlers/clinic_appointments.go`
+**变更**: 按角色矩阵为 clinic 路由挂载 RequireRoles；handler 内部加 Frontdesk/Doctor 细粒度约束
+- 读取: Owner/Manager/Doctor/Frontdesk
+- 预约状态变更: Frontdesk(confirm/check-in/cancel) | Doctor(in_progress/completed) | Owner/Manager(all)
+- 病例写入/结案: Owner/Manager/Doctor
+- 保险: Owner/Manager only
+- [completed] ✅ go build 通过
+
+#### FIX-5 [P1] 前端 Visit 页面更新结案按钮逻辑
+**文件**: `frontend/app/merchant/clinic/visits/[id]/page.tsx`
+**变更**:
+- `NEXT_STEP_MAP`: 标准下一步推进按钮（"完成诊断 →"、"完成处置 →"、"完成处方 →"、"结案"）
+- `DIRECT_CLOSE_STATUSES`: in_progress/diagnosed/treated 显示"直接结案"次选按钮
+- 修复 `handlePushToApp`：改为正确调用 `pushToApp` store 方法（不再错误地改变 status）
+- 结案后显示"推送到App"按钮（含已推送状态"重新推送"）
+- [completed] ✅ npm run build 通过，17 页面全部编译
+
+### 执行顺序
+1. FIX-1（状态机）→ 2. FIX-2（联动）→ 3. FIX-3（中间件）→ 4. FIX-4（路由）→ 5. FIX-5（前端）
+每完成一项 → 回写 progress.md → go build 验证
+
+### 完成时间：2026-03-29 ✅ ALL DONE

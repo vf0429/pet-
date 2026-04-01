@@ -8,6 +8,8 @@ import { usePendingTasks } from '@/hooks/usePendingTasks'
 import KPICard from '@/components/KPICard'
 import StatusBadge from '@/components/StatusBadge'
 import SyncStatusCard from '@/components/SyncStatusCard'
+import { useI18n } from '@/lib/i18n'
+import { getVisitTypeLabel } from '@/lib/i18n-labels'
 
 export default function ClinicDashboardPage() {
   const {
@@ -20,6 +22,7 @@ export default function ClinicDashboardPage() {
   // Phase 4B: Start pending tasks polling and get sync status
   const { syncStatus, isLoadingSyncStatus, fetchSyncStatus } = useMerchantRealtimeStore()
   usePendingTasks('clinic')
+  const { pick, formatTime, formatRelativeTime, locale } = useI18n()
 
   // Fetch sync status on mount
   useEffect(() => {
@@ -30,39 +33,22 @@ export default function ClinicDashboardPage() {
     fetchDashboardData()
   }, [fetchDashboardData])
 
-  const formatTime = (isoString: string) => {
-    const date = new Date(isoString)
-    return date.toLocaleTimeString('en-HK', { hour: '2-digit', minute: '2-digit', hour12: false })
-  }
-
-  const formatDate = (isoString: string | null) => {
-    if (!isoString) return 'Never'
-    const date = new Date(isoString)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMin = Math.floor(diffMs / 60000)
-    if (diffMin < 1) return 'Just now'
-    if (diffMin < 60) return `${diffMin} min ago`
-    const diffHr = Math.floor(diffMin / 60)
-    if (diffHr < 24) return `${diffHr}h ago`
-    return date.toLocaleDateString('en-HK')
-  }
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Clinic Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-500">Overview of your clinic operations today</p>
+        <p className="mt-1 text-sm text-slate-500">{pick('Overview of your clinic operations today', '查看今日診所營運概況')}</p>
       </div>
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KPICard
-          title="今日预约"
+          title={pick('Appointments today', '今日預約')}
           value={stats?.todayAppointments ?? '-'}
           delta={stats?.todayAppointmentsDelta !== undefined ? stats.todayAppointmentsDelta : undefined}
-          deltaLabel="vs 昨日"
+          deltaLabel={pick('vs yesterday', '較昨日')}
           isLoading={isLoadingStats}
           href="/merchant/clinic/appointments"
           icon={
@@ -72,7 +58,7 @@ export default function ClinicDashboardPage() {
           }
         />
         <KPICard
-          title="当前就诊中"
+          title={pick('Visits in progress', '目前就診中')}
           value={stats?.inProgressVisits ?? '-'}
           isLoading={isLoadingStats}
           href="/merchant/clinic/appointments?status=in_progress"
@@ -83,7 +69,7 @@ export default function ClinicDashboardPage() {
           }
         />
         <KPICard
-          title="待处理回访"
+          title={pick('Pending follow-ups', '待處理回訪')}
           value={stats?.pendingFollowupsOverdue ?? '-'}
           isLoading={isLoadingStats}
           href="/merchant/clinic/followups"
@@ -94,7 +80,7 @@ export default function ClinicDashboardPage() {
           }
         />
         <KPICard
-          title="本月新患者"
+          title={pick('New patients this month', '本月新患者')}
           value={stats?.newPatientsThisMonth ?? '-'}
           isLoading={isLoadingStats}
           icon={
@@ -114,7 +100,7 @@ export default function ClinicDashboardPage() {
             onClick={fetchDashboardData}
             className="mt-2 text-sm font-medium text-rose-700 underline"
           >
-            重试
+            {pick('Retry', '重試')}
           </button>
         </div>
       )}
@@ -125,12 +111,12 @@ export default function ClinicDashboardPage() {
         <div className="lg:col-span-2">
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <h2 className="text-lg font-semibold text-slate-900">今日预约</h2>
+              <h2 className="text-lg font-semibold text-slate-900">{pick("Today's appointments", "今日預約")}</h2>
               <Link
                 href="/merchant/clinic/appointments"
                 className="text-sm font-medium text-sky-600 hover:text-sky-700"
               >
-                查看全部
+                {pick('View all', '查看全部')}
               </Link>
             </div>
 
@@ -151,7 +137,7 @@ export default function ClinicDashboardPage() {
               </div>
             ) : !stats?.todayAppointmentList?.length ? (
               <div className="p-8 text-center">
-                <p className="text-sm text-slate-500">今日暂无预约</p>
+                <p className="text-sm text-slate-500">{pick('No appointments today', '今日沒有預約')}</p>
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
@@ -178,7 +164,7 @@ export default function ClinicDashboardPage() {
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <StatusBadge status={appt.status} size="sm" />
-                      <span className="text-xs text-slate-400 capitalize">{appt.visitType}</span>
+                      <span className="text-xs text-slate-400 capitalize">{getVisitTypeLabel(locale, appt.visitType)}</span>
                     </div>
                   </Link>
                 ))}
@@ -198,7 +184,7 @@ export default function ClinicDashboardPage() {
 
           {/* Quick Stats Card */}
           <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-sm font-semibold text-slate-900">快速操作</h3>
+            <h3 className="text-sm font-semibold text-slate-900">{pick('Quick actions', '快速操作')}</h3>
             <div className="mt-3 space-y-2">
               <Link
                 href="/merchant/clinic/appointments"
@@ -207,7 +193,7 @@ export default function ClinicDashboardPage() {
                 <svg className="h-4 w-4 text-cyan-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                预约管理
+                {pick('Appointments', '預約管理')}
               </Link>
               <Link
                 href="/merchant/clinic/followups"
@@ -216,7 +202,7 @@ export default function ClinicDashboardPage() {
                 <svg className="h-4 w-4 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
-                回访管理
+                {pick('Follow-ups', '回訪管理')}
               </Link>
               <Link
                 href="/merchant/clinic/pharmacy"
@@ -225,7 +211,7 @@ export default function ClinicDashboardPage() {
                 <svg className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                 </svg>
-                药房库存
+                {pick('Pharmacy inventory', '藥房庫存')}
               </Link>
             </div>
           </div>

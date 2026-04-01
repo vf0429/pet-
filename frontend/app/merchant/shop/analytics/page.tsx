@@ -6,15 +6,8 @@ import AnalyticsMetricCard from '@/components/analytics/AnalyticsMetricCard'
 import AnalyticsState from '@/components/analytics/AnalyticsState'
 import AnalyticsToolbar from '@/components/analytics/AnalyticsToolbar'
 import ShopAnalyticsCharts from '@/components/analytics/ShopAnalyticsCharts'
+import { useI18n } from '@/lib/i18n'
 import { useShopAnalyticsStore } from '@/store/analytics'
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('zh-HK', {
-    style: 'currency',
-    currency: 'HKD',
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  }).format(value)
 
 const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
 
@@ -41,6 +34,7 @@ function PageSkeleton() {
 
 export default function ShopAnalyticsPage() {
   const { data, period, isLoading, error, setPeriod, fetchAnalytics } = useShopAnalyticsStore()
+  const { pick, formatCurrency } = useI18n()
 
   useEffect(() => {
     fetchAnalytics({ period })
@@ -56,8 +50,8 @@ export default function ShopAnalyticsPage() {
   return (
     <div className="space-y-6">
       <AnalyticsToolbar
-        title="销售数据分析"
-        subtitle="查看销售趋势、品类构成与热销商品表现。"
+        title={pick('Sales analytics', '銷售數據分析')}
+        subtitle={pick('Review sales trends, category mix, and best-performing products.', '查看銷售趨勢、品類構成與熱銷商品表現。')}
         period={period}
         onPeriodChange={setPeriod}
         isLoading={isLoading}
@@ -67,29 +61,29 @@ export default function ShopAnalyticsPage() {
 
       {!isLoading && error ? (
         <AnalyticsState
-          title="数据加载失败"
+          title={pick('Unable to load data', '資料載入失敗')}
           description={error}
-          actionLabel="重试"
+          actionLabel={pick('Retry', '重試')}
           onAction={() => fetchAnalytics({ period })}
           tone="error"
         />
       ) : null}
 
       {!isLoading && !error && data && !hasData ? (
-        <AnalyticsState title="暂无数据，请选择其他时间范围" />
+        <AnalyticsState title={pick('No data for the selected range', '目前沒有資料，請選擇其他時間範圍')} />
       ) : null}
 
       {!error && data && hasData ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <AnalyticsMetricCard label="总营收" value={formatCurrency(data.summary.totalRevenue)} accentClassName="bg-blue-600" />
-            <AnalyticsMetricCard label="总订单数" value={String(data.summary.totalOrders)} accentClassName="bg-blue-500" />
-            <AnalyticsMetricCard label="客单价" value={formatCurrency(data.summary.avgOrderValue)} accentClassName="bg-blue-400" />
-            <AnalyticsMetricCard label="复购率" value={formatPercent(data.summary.repeatPurchaseRate)} accentClassName="bg-blue-300" />
+            <AnalyticsMetricCard label={pick('Total revenue', '總營收')} value={formatCurrency(data.summary.totalRevenue)} accentClassName="bg-blue-600" />
+            <AnalyticsMetricCard label={pick('Total orders', '總訂單數')} value={String(data.summary.totalOrders)} accentClassName="bg-blue-500" />
+            <AnalyticsMetricCard label={pick('Average order value', '客單價')} value={formatCurrency(data.summary.avgOrderValue)} accentClassName="bg-blue-400" />
+            <AnalyticsMetricCard label={pick('Repeat purchase rate', '回購率')} value={formatPercent(data.summary.repeatPurchaseRate)} accentClassName="bg-blue-300" />
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-blue-50/70 px-4 py-3 text-sm text-slate-600 shadow-sm">
-            统计周期：{data.period.from} 至 {data.period.to}
+            {pick('Reporting period: {from} to {to}', '統計週期：{from} 至 {to}', { from: data.period.from, to: data.period.to })}
           </div>
 
           <ShopAnalyticsCharts data={data} />

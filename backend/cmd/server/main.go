@@ -128,6 +128,12 @@ func main() {
 			// Health Reminders (GET — read-only; PATCH registered below after visitWriteRoles)
 			clinicGroup.GET("/reminders", clinicReadRoles, handlers.ListClinicReminders(db))
 
+			// Doctors list (for create appointment form)
+			clinicGroup.GET("/doctors", clinicReadRoles, handlers.ListClinicDoctors(db))
+
+			// Appointments create
+			clinicGroup.POST("/appointments", clinicReadRoles, handlers.CreateClinicAppointment(db))
+
 			// Appointment status update — role-restricted inside handler
 			// (Owner/Manager: all; Frontdesk: confirm/check-in/cancel; Doctor: in_progress/completed)
 			clinicGroup.PATCH("/appointments/:id/status",
@@ -150,8 +156,12 @@ func main() {
 			clinicGroup.POST("/followups", visitWriteRoles, handlers.CreateClinicFollowup(db))
 			clinicGroup.PATCH("/followups/:id/status", visitWriteRoles, handlers.UpdateClinicFollowupStatus(db))
 
-			// Health Reminders — fulfill (write)
+			// Health Reminders — fulfill (write) + create
 			clinicGroup.PATCH("/reminders/:id", visitWriteRoles, handlers.FulfillClinicReminder(db))
+			clinicGroup.POST("/reminders", visitWriteRoles, handlers.CreateClinicReminder(db))
+
+			// Patients create
+			clinicGroup.POST("/patients", visitWriteRoles, handlers.CreateClinicPatient(db))
 
 			// Pharmacy — Owner/Manager/Doctor
 			clinicGroup.GET("/pharmacy", visitWriteRoles, handlers.ListPharmacyItems(db))
@@ -206,6 +216,7 @@ func seedData(db *gorm.DB) {
 		seedShopData(db)
 		seedClinicData(db)
 		seedPhase4AData(db)
+		seedClinicPatientsAndClients(db)
 		return
 	}
 
@@ -1033,4 +1044,202 @@ func seedPhase4AData(db *gorm.DB) {
 	}
 
 	log.Println("Phase 4A seed data created successfully")
+}
+
+// seedClinicPatientsAndClients seeds clinic_clients, clinic_patients, and health_reminders
+// from existing appointment data. Idempotent — skips if any clients already exist.
+func seedClinicPatientsAndClients(db *gorm.DB) {
+	var count int64
+	db.Model(&models.ClinicClient{}).Count(&count)
+	if count > 0 {
+		return
+	}
+
+	now := time.Now()
+
+	type ownerKey struct {
+		Name     string
+		Phone    string
+		TenantID uint
+	}
+
+	// Collect unique owners from appointments
+	type apptRow struct {
+		PetOwnerName  string
+		PetOwnerPhone string
+		TenantID      uint
+	}
+	var apptRows []apptRow
+	db.Model(&models.ClinicAppointment{}).
+		Select("DISTINCT pet_owner_name, pet_owner_phone, tenant_id").
+		Scan(&apptRows)
+
+	ownerToClient := map[ownerKey]*models.ClinicClient{}
+
+	for _, row := range apptRows {
+		key := ownerKey{Name: row.PetOwnerName, Phone: row.PetOwnerPhone, TenantID: row.TenantID}
+		if _, exists := ownerToClient[key]; exists {
+			continue
+		}
+		parts := strings.SplitN(row.PetOwnerName, " ", 2)
+		first, last := parts[0], ""
+		if len(parts) == 2 {
+			last = parts[1]
+		}
+		email := strings.ToLower(strings.ReplaceAll(row.PetOwnerName, " ", ".")) + "@example.com"
+		client := &models.ClinicClient{
+			TenantID:  row.TenantID,
+			FirstName: first,
+			LastName:  last,
+			Phone:     row.PetOwnerPhone,
+			Email:     email,
+			Active:    true,
+		}
+		if err := db.Create(client).Error; err == nil {
+			ownerToClient[key] = client
+		}
+	}
+
+	// Species + breed pools
+	type speciesBreed struct{ species, breed string }
+	sbPool := []speciesBreed{
+		{"Dog", "Golden Retriever"}, {"Dog", "Labrador"}, {"Dog", "Poodle"},
+		{"Dog", "Shiba Inu"}, {"Dog", "Corgi"}, {"Dog", "Beagle"},
+		{"Cat", "British Shorthair"}, {"Cat", "Ragdoll"}, {"Cat", "Siamese"},
+		{"Cat", "Scottish Fold"}, {"Rabbit", "Holland Lop"}, {"Hamster", "Syrian"},
+	}
+	genders := []string{"Male", "Female", "Male", "Female"}
+
+	type petKey struct {
+		PetName  string
+		ClientID uint
+	}
+	petToPatient := map[petKey]*models.ClinicPatient{}
+
+	type apptPetRow struct {
+		PetName       string
+		PetOwnerName  string
+		PetOwnerPhone string
+		TenantID      uint
+	}
+	var apptPetRows []apptPetRow
+	db.Model(&models.ClinicAppointment{}).
+		Select("DISTINCT pet_name, pet_owner_name, pet_owner_phone, tenant_id").
+		Scan(&apptPetRows)
+
+	for i, row := range apptPetRows {
+		key := ownerKey{Name: row.PetOwnerName, Phone: row.PetOwnerPhone, TenantID: row.TenantID}
+		client, ok := ownerToClient[key]
+		if !ok {
+			continue
+		}
+		pk := petKey{PetName: row.PetName, ClientID: client.ID}
+		if _, exists := petToPatient[pk]; exists {
+			continue
+		}
+		sb := sbPool[i%len(sbPool)]
+		gender := genders[i%len(genders)]
+		dob := now.AddDate(-(2 + i%8), -(i % 12), 0)
+		weight := 3.5 + float64(i%15)*0.7
+		patient := &models.ClinicPatient{
+			TenantID:   row.TenantID,
+			ClientID:   client.ID,
+			Name:       row.PetName,
+			Gender:     gender,
+			DateOfBirth: &dob,
+			Weight:     weight,
+			WeightUnit: "kg",
+			Active:     true,
+		}
+		// Set species/breed via IDs if they exist, else store names in notes
+		var sp models.AnimalSpecies
+		if db.Where("name = ?", sb.species).First(&sp).Error == nil {
+			patient.SpeciesID = &sp.ID
+		}
+		var br models.AnimalBreed
+		if db.Where("name = ?", sb.breed).First(&br).Error == nil {
+			patient.BreedID = &br.ID
+		}
+		if err := db.Create(patient).Error; err == nil {
+			petToPatient[pk] = patient
+		}
+	}
+
+	// Link appointments to patients
+	var appts []models.ClinicAppointment
+	db.Find(&appts)
+	for _, appt := range appts {
+		key := ownerKey{Name: appt.PetOwnerName, Phone: appt.PetOwnerPhone, TenantID: appt.TenantID}
+		client, ok := ownerToClient[key]
+		if !ok {
+			continue
+		}
+		pk := petKey{PetName: appt.PetName, ClientID: client.ID}
+		patient, ok := petToPatient[pk]
+		if !ok {
+			continue
+		}
+		db.Model(&appt).Updates(map[string]interface{}{
+			"patient_id": patient.ID,
+			"client_id":  client.ID,
+		})
+	}
+
+	// Create health reminders
+	reminderTemplates := []struct {
+		Category   string
+		Name       string
+		Importance string
+		OffsetDays int
+	}{
+		{"vaccine", "Rabies Vaccine", "high", -15},
+		{"vaccine", "Annual DHPP", "high", 14},
+		{"deworm", "Monthly Deworming", "medium", -7},
+		{"deworm", "Heartworm Prevention", "medium", 21},
+		{"checkup", "Annual Physical Exam", "medium", -30},
+		{"dental", "Dental Cleaning", "low", 45},
+		{"vaccine", "Bordetella Vaccine", "medium", 7},
+		{"checkup", "Blood Panel", "medium", 60},
+	}
+
+	i := 0
+	for _, patient := range petToPatient {
+		tmpl := reminderTemplates[i%len(reminderTemplates)]
+		dueAt := now.AddDate(0, 0, tmpl.OffsetDays+i%5)
+		var lastFulfilled *time.Time
+		if tmpl.OffsetDays < 0 {
+			t := dueAt.AddDate(0, -1, 0)
+			lastFulfilled = &t
+		}
+		reminder := models.HealthReminder{
+			TenantID:        patient.TenantID,
+			PatientID:       patient.ID,
+			Category:        tmpl.Category,
+			Name:            tmpl.Name,
+			Importance:      tmpl.Importance,
+			DueAt:           &dueAt,
+			LastFulfilledAt: lastFulfilled,
+			Active:          true,
+		}
+		db.Create(&reminder)
+		// Add a second reminder for some pets
+		if i%3 == 0 {
+			tmpl2 := reminderTemplates[(i+3)%len(reminderTemplates)]
+			due2 := now.AddDate(0, 0, tmpl2.OffsetDays+i%7)
+			r2 := models.HealthReminder{
+				TenantID:   patient.TenantID,
+				PatientID:  patient.ID,
+				Category:   tmpl2.Category,
+				Name:       tmpl2.Name,
+				Importance: tmpl2.Importance,
+				DueAt:      &due2,
+				Active:     true,
+			}
+			db.Create(&r2)
+		}
+		i++
+	}
+
+	log.Printf("Clinic patients/clients seed: %d clients, %d patients created",
+		len(ownerToClient), len(petToPatient))
 }

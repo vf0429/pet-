@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
+import CreateReminderModal from '@/components/clinic/CreateReminderModal'
 import { useI18n } from '@/lib/i18n'
 import { useClinicRemindersStore } from '@/store/clinic'
 import { ReminderStatus } from '@/lib/api'
@@ -38,6 +39,7 @@ export default function RemindersPage() {
   } = useClinicRemindersStore()
 
   const { pick } = useI18n()
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   useEffect(() => {
     fetchReminders()
@@ -68,12 +70,23 @@ export default function RemindersPage() {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="border-b border-slate-200 bg-white px-6 py-5">
-        <h1 className="text-xl font-semibold text-slate-900">
-          {pick('Health Reminders', '健康提醒')}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {pick('Track vaccinations, deworming, and follow-up care for all patients.', '追蹤所有患者的疫苗、驅蟲及後續護理。')}
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900">
+              {pick('Health Reminders', '健康提醒')}
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {pick('Track vaccinations, deworming, and follow-up care for all patients.', '追蹤所有患者的疫苗、驅蟲及後續護理。')}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+          >
+            {pick('+ Add Reminder', '+ 新增提醒')}
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -246,6 +259,15 @@ export default function RemindersPage() {
           </>
         )}
       </div>
+
+      {showCreateModal && (
+        <CreateReminderModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => {
+            fetchReminders()
+          }}
+        />
+      )}
     </div>
   )
 }

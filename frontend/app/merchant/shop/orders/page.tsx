@@ -6,16 +6,10 @@ import { useShopOrdersStore } from '@/store/shop'
 import { ShopOrderStatus } from '@/lib/api'
 import StatusBadge from '@/components/StatusBadge'
 import OrderDetailDrawer from '@/components/OrderDetailDrawer'
+import { useI18n } from '@/lib/i18n'
+import { getOrderStatusLabel } from '@/lib/i18n-labels'
 
-const STATUS_TABS: { label: string; value: string }[] = [
-  { label: '全部', value: '' },
-  { label: '待付款', value: 'pending' },
-  { label: '已付款', value: 'paid' },
-  { label: '备货中', value: 'preparing' },
-  { label: '配送中', value: 'shipped' },
-  { label: '已完成', value: 'completed' },
-  { label: '已取消', value: 'cancelled' },
-]
+const STATUS_TABS = ['', 'pending', 'paid', 'preparing', 'shipped', 'completed', 'cancelled'] as const
 
 export default function ShopOrdersPage() {
   const router = useRouter()
@@ -43,6 +37,7 @@ export default function ShopOrdersPage() {
   const [dateFrom, setDateFrom] = useState(filters.dateFrom)
   const [dateTo, setDateTo] = useState(filters.dateTo)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const { pick, locale, formatCurrency, formatDateTime } = useI18n()
 
   const searchTimeoutRef = useRef<NodeJS.Timeout>(undefined)
 
@@ -100,7 +95,7 @@ export default function ShopOrdersPage() {
 
   // Export CSV
   const handleExportCSV = () => {
-    const headers = ['订单号', '客户', '宠物', '商品', '金额', '状态', '下单时间']
+    const headers = [pick('Order No.', '訂單編號'), pick('Customer', '客戶'), pick('Pet', '寵物'), pick('Items', '商品'), pick('Amount', '金額'), pick('Status', '狀態'), pick('Placed at', '下單時間')]
     const rows = orders.map((order) => [
       order.orderNo,
       order.customerName,
@@ -125,23 +120,6 @@ export default function ShopOrdersPage() {
     URL.revokeObjectURL(url)
   }
 
-  const formatPrice = (amount: number, currency: string) => {
-    return new Intl.NumberFormat('zh-HK', {
-      style: 'currency',
-      currency,
-    }).format(amount)
-  }
-
-  const formatDateTime = (isoString: string) => {
-    const date = new Date(isoString)
-    return date.toLocaleString('zh-HK', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
 
   const totalPages = Math.ceil(total / perPage)
 
@@ -151,7 +129,7 @@ export default function ShopOrdersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Orders</h1>
-          <p className="mt-1 text-sm text-slate-500">Manage and track your orders</p>
+          <p className="mt-1 text-sm text-slate-500">{pick('Manage and track your orders', '管理並追蹤你的訂單')}</p>
         </div>
         <button
           type="button"
@@ -162,7 +140,7 @@ export default function ShopOrdersPage() {
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
-          导出 CSV
+          {pick('Export CSV', '匯出 CSV')}
         </button>
       </div>
 
@@ -170,18 +148,18 @@ export default function ShopOrdersPage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         {/* Status Tabs */}
         <div className="mb-4 flex flex-wrap gap-1">
-          {STATUS_TABS.map((tab) => (
+          {STATUS_TABS.map((status) => (
             <button
-              key={tab.value}
+              key={status}
               type="button"
-              onClick={() => handleStatusChange(tab.value)}
+              onClick={() => handleStatusChange(status)}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                filters.status === tab.value
+                filters.status === status
                   ? 'bg-slate-900 text-white'
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              {tab.label}
+              {status === '' ? pick('All', '全部') : getOrderStatusLabel(locale, status)}
             </button>
           ))}
         </div>
@@ -202,14 +180,14 @@ export default function ShopOrdersPage() {
                 type="text"
                 value={searchInput}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                placeholder="搜索订单号或客户名..."
+                placeholder={pick('Search order number or customer name...', '搜尋訂單編號或客戶姓名...')}
                 className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-4 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
               />
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">从</span>
+            <span className="text-sm text-slate-500">{pick('From', '從')}</span>
             <input
               type="date"
               value={dateFrom}
@@ -219,7 +197,7 @@ export default function ShopOrdersPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">至</span>
+            <span className="text-sm text-slate-500">{pick('To', '至')}</span>
             <input
               type="date"
               value={dateTo}
@@ -239,7 +217,7 @@ export default function ShopOrdersPage() {
             onClick={() => fetchOrders()}
             className="mt-2 text-sm font-medium text-rose-700 underline"
           >
-            重试
+            {pick('Retry', '重試')}
           </button>
         </div>
       )}
@@ -271,7 +249,7 @@ export default function ShopOrdersPage() {
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
             </svg>
-            <p className="mt-4 text-sm text-slate-500">暂无订单数据</p>
+            <p className="mt-4 text-sm text-slate-500">{pick('No orders found', '目前沒有訂單資料')}</p>
           </div>
         ) : (
           <>
@@ -305,7 +283,7 @@ export default function ShopOrdersPage() {
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-slate-900">
-                      {formatPrice(order.totalAmount, order.currency)}
+                      {formatCurrency(order.totalAmount, order.currency)}
                     </p>
                     <p className="mt-1 text-xs text-slate-400">
                       {formatDateTime(order.placedAt)}
@@ -319,7 +297,7 @@ export default function ShopOrdersPage() {
             {totalPages > 1 && (
               <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4">
                 <div className="flex items-center gap-2 text-sm text-slate-500">
-                  <span>显示</span>
+                  <span>{pick('Show', '顯示')}</span>
                   <select
                     value={perPage}
                     onChange={(e) => setPerPage(Number(e.target.value))}
@@ -329,7 +307,7 @@ export default function ShopOrdersPage() {
                     <option value={20}>20</option>
                     <option value={50}>50</option>
                   </select>
-                  <span>条，共 {total} 条</span>
+                  <span>{pick('{count} per page, {total} total', '每頁 {count} 筆，共 {total} 筆', { count: perPage, total })}</span>
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -339,7 +317,7 @@ export default function ShopOrdersPage() {
                     disabled={page === 1}
                     className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    上一页
+                    {pick('Previous', '上一頁')}
                   </button>
 
                   <div className="mx-2 flex items-center gap-1">
@@ -377,7 +355,7 @@ export default function ShopOrdersPage() {
                     disabled={!hasMore}
                     className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    下一页
+                    {pick('Next', '下一頁')}
                   </button>
                 </div>
               </div>

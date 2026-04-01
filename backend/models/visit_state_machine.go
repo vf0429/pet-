@@ -18,19 +18,28 @@ func NewClinicVisitStateMachine() *ClinicVisitStateMachine {
 
 // CanTransition checks if a visit status transition is valid.
 //
-//	in_progress       -> diagnosed
-//	diagnosed         -> treated
-//	treated           -> prescription_done
+// Standard full flow:
+//
+//	in_progress -> diagnosed -> treated -> prescription_done -> closed
+//
+// Early-close shortcuts (for simple visits, vaccinations, etc.):
+//
+//	in_progress       -> closed              (e.g. vaccination / trivial check)
+//	diagnosed         -> closed              (skip treatment + prescription)
+//	treated           -> closed              (skip prescription)
 //	prescription_done -> closed
 //	closed            -> (terminal, no transitions)
 func (sm *ClinicVisitStateMachine) CanTransition(from, to ClinicVisitStatus) bool {
 	switch from {
 	case ClinicVisitStatusInProgress:
-		return to == ClinicVisitStatusDiagnosed
+		return to == ClinicVisitStatusDiagnosed ||
+			to == ClinicVisitStatusClosed
 	case ClinicVisitStatusDiagnosed:
-		return to == ClinicVisitStatusTreated
+		return to == ClinicVisitStatusTreated ||
+			to == ClinicVisitStatusClosed
 	case ClinicVisitStatusTreated:
-		return to == ClinicVisitStatusPrescriptionDone
+		return to == ClinicVisitStatusPrescriptionDone ||
+			to == ClinicVisitStatusClosed
 	case ClinicVisitStatusPrescriptionDone:
 		return to == ClinicVisitStatusClosed
 	case ClinicVisitStatusClosed:

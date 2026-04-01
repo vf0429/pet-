@@ -6,34 +6,16 @@ import AnalyticsMetricCard from '@/components/analytics/AnalyticsMetricCard'
 import AnalyticsState from '@/components/analytics/AnalyticsState'
 import AnalyticsToolbar from '@/components/analytics/AnalyticsToolbar'
 import ClinicAnalyticsCharts from '@/components/analytics/ClinicAnalyticsCharts'
+import { useI18n } from '@/lib/i18n'
 import { useClinicAnalyticsStore } from '@/store/analytics'
 
 const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
-const formatMinutes = (value: number | null) => (value === null ? '--' : `${Math.round(value)} 分钟`)
-
-function PageSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="h-4 w-32 rounded bg-slate-200" />
-        <div className="mt-3 h-8 w-48 rounded bg-slate-200" />
-        <div className="mt-2 h-4 w-64 rounded bg-slate-200" />
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="h-32 animate-pulse rounded-2xl bg-slate-200" />
-        ))}
-      </div>
-      <div className="grid gap-6 xl:grid-cols-2">
-        <div className="h-96 animate-pulse rounded-2xl bg-slate-200" />
-        <div className="h-96 animate-pulse rounded-2xl bg-slate-200" />
-      </div>
-    </div>
-  )
-}
 
 export default function ClinicAnalyticsPage() {
   const { data, period, isLoading, error, setPeriod, fetchAnalytics } = useClinicAnalyticsStore()
+  const { pick } = useI18n()
+
+  const formatMinutes = (value: number | null) => (value === null ? '--' : pick('{value} mins', '{value} 分鐘', { value: Math.round(value) }))
 
   useEffect(() => {
     fetchAnalytics({ period })
@@ -50,40 +32,38 @@ export default function ClinicAnalyticsPage() {
   return (
     <div className="space-y-6">
       <AnalyticsToolbar
-        title="诊疗数据分析"
-        subtitle="查看就诊趋势、病种分布、医生负载与预约到场表现。"
+        title={pick('Clinical analytics', '診療數據分析')}
+        subtitle={pick('Review visit trends, diagnosis mix, doctor workload, and appointment attendance.', '查看就診趨勢、病種分佈、醫生負載與預約到場表現。')}
         period={period}
         onPeriodChange={setPeriod}
         isLoading={isLoading}
       />
 
-      {isLoading && !data ? <PageSkeleton /> : null}
-
       {!isLoading && error ? (
         <AnalyticsState
-          title="数据加载失败"
+          title={pick('Unable to load data', '資料載入失敗')}
           description={error}
-          actionLabel="重试"
+          actionLabel={pick('Retry', '重試')}
           onAction={() => fetchAnalytics({ period })}
           tone="error"
         />
       ) : null}
 
       {!isLoading && !error && data && !hasData ? (
-        <AnalyticsState title="暂无数据，请选择其他时间范围" />
+        <AnalyticsState title={pick('No data for the selected range', '目前沒有資料，請選擇其他時間範圍')} />
       ) : null}
 
       {!error && data && hasData ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <AnalyticsMetricCard label="总就诊数" value={String(data.summary.totalVisits)} accentClassName="bg-cyan-600" />
-            <AnalyticsMetricCard label="平均就诊时长" value={formatMinutes(data.summary.avgVisitDurationMin)} accentClassName="bg-cyan-500" />
-            <AnalyticsMetricCard label="复诊率" value={formatPercent(data.summary.revisitRate30d)} accentClassName="bg-cyan-400" />
-            <AnalyticsMetricCard label="处方率" value={formatPercent(data.summary.prescriptionRate)} accentClassName="bg-cyan-300" />
+            <AnalyticsMetricCard label={pick('Total visits', '總就診數')} value={String(data.summary.totalVisits)} accentClassName="bg-cyan-600" />
+            <AnalyticsMetricCard label={pick('Average visit duration', '平均就診時長')} value={formatMinutes(data.summary.avgVisitDurationMin)} accentClassName="bg-cyan-500" />
+            <AnalyticsMetricCard label={pick('Revisit rate', '覆診率')} value={formatPercent(data.summary.revisitRate30d)} accentClassName="bg-cyan-400" />
+            <AnalyticsMetricCard label={pick('Prescription rate', '處方率')} value={formatPercent(data.summary.prescriptionRate)} accentClassName="bg-cyan-300" />
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-cyan-50/70 px-4 py-3 text-sm text-slate-600 shadow-sm">
-            统计周期：{data.period.from} 至 {data.period.to}
+            {pick('Reporting period: {from} to {to}', '統計週期：{from} 至 {to}', { from: data.period.from, to: data.period.to })}
           </div>
 
           <ClinicAnalyticsCharts data={data} />

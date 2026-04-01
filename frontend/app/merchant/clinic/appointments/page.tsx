@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 import StatusBadge from '@/components/StatusBadge'
+import CreateAppointmentModal from '@/components/clinic/CreateAppointmentModal'
 import { AppointmentStatus, UpdateAppointmentStatusParams } from '@/lib/api'
 import { useI18n } from '@/lib/i18n'
 import { getAppointmentStatusLabel, getVisitTypeLabel } from '@/lib/i18n-labels'
@@ -83,6 +84,7 @@ export default function ClinicAppointmentsPage() {
   } = useClinicAppointmentsStore()
 
   const [cancelTarget, setCancelTarget] = useState<number | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [dateInput, setDateInput] = useState(filters.date)
   const [searchInput, setSearchInput] = useState(filters.q)
 
@@ -152,6 +154,13 @@ export default function ClinicAppointmentsPage() {
             )}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowCreateModal(true)}
+          className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+        >
+          {pick('+ New Appointment', '+ 新增預約')}
+        </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -480,6 +489,15 @@ export default function ClinicAppointmentsPage() {
           }}
           onClose={() => setCancelTarget(null)}
           isLoading={isUpdatingStatus}
+        />
+      )}
+
+      {showCreateModal && (
+        <CreateAppointmentModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => {
+            fetchAppointments()
+          }}
         />
       )}
     </div>

@@ -7,12 +7,13 @@ import Sidebar from '@/components/Sidebar'
 import TopBar from '@/components/TopBar'
 import ToastContainer from '@/components/ToastContainer'
 import { useAuthStore } from '@/store/auth'
+import { useI18n } from '@/lib/i18n'
 
-function getPageTitle(pathname: string) {
-  if (pathname.startsWith('/merchant/shop')) return 'Shop Workspace'
-  if (pathname.startsWith('/merchant/clinic')) return 'Clinic Workspace'
-  if (pathname.startsWith('/merchant/403')) return 'Permission Required'
-  return 'Dashboard'
+function getPageTitle(pathname: string, pick: (en: string, zhHK: string) => string) {
+  if (pathname.startsWith('/merchant/shop')) return pick('Shop Workspace', '商店工作區')
+  if (pathname.startsWith('/merchant/clinic')) return pick('Clinic Workspace', '診所工作區')
+  if (pathname.startsWith('/merchant/403')) return pick('Permission Required', '需要權限')
+  return pick('Dashboard', '儀表板')
 }
 
 export default function MerchantLayout({ children }: { children: ReactNode }) {
@@ -28,6 +29,7 @@ export default function MerchantLayout({ children }: { children: ReactNode }) {
   const clearSession = useAuthStore((state) => state.clearSession)
 
   const [layoutError, setLayoutError] = useState<string | null>(null)
+  const { pick } = useI18n()
 
   useEffect(() => {
     hydrateFromCookie()
@@ -91,7 +93,7 @@ export default function MerchantLayout({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
         <div className="rounded-2xl border border-slate-200 bg-white px-8 py-10 text-center shadow-sm">
           <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-t-sky-500" />
-          <p className="text-sm text-slate-600">Loading merchant workspace...</p>
+          <p className="text-sm text-slate-600">{pick('Loading merchant workspace...', '正在載入商戶工作區...')}</p>
         </div>
       </div>
     )
@@ -101,7 +103,7 @@ export default function MerchantLayout({ children }: { children: ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
         <div className="max-w-md rounded-3xl border border-rose-200 bg-white p-8 shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-900">页面加载失败</h2>
+          <h2 className="text-xl font-semibold text-slate-900">{pick('Unable to load page', '頁面載入失敗')}</h2>
           <p className="mt-2 text-sm text-slate-600">{layoutError}</p>
           <button
             type="button"
@@ -116,7 +118,7 @@ export default function MerchantLayout({ children }: { children: ReactNode }) {
             }}
             className="mt-6 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white"
           >
-            Retry
+            {pick('Retry', '重試')}
           </button>
         </div>
       </div>
@@ -130,8 +132,8 @@ export default function MerchantLayout({ children }: { children: ReactNode }) {
       </div>
       <div className="flex min-h-screen flex-1 flex-col md:ml-60">
         <TopBar
-          title={getPageTitle(pathname)}
-          subtitle={tenant ? `${tenant.name} · ${user?.activeBusinessType ?? 'shop'} view` : 'Loading tenant'}
+          title={getPageTitle(pathname, pick)}
+          subtitle={tenant ? `${tenant.name} · ${user?.activeBusinessType === 'clinic' ? pick('Clinic view', '診所檢視') : pick('Shop view', '商店檢視')}` : pick('Loading tenant', '正在載入商戶資訊')}
         />
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>

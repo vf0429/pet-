@@ -386,3 +386,72 @@ txErr := db.Transaction(func(tx *gorm.DB) error {
   - `cd /Users/vfzzz/Desktop/petwell-merchant/frontend && npm run build` 通过。
   - 实跑：`npx playwright test tests/phase5/phase5_p0.spec.ts --reporter=list` → 5/5 PASS。
   - 收尾修正：Phase 5 Playwright 将不稳定的 `toHaveScreenshot()` 改为运行期 `page.screenshot(...)`，并修正 clinic UI 用例登录/业务切换路径；同时重启了最新 backend/frontend 进程以加载 analytics 新路由。
+
+---
+
+## 2026-03-29：Phase 6 — Clinic Flow 闭环 & 权限修复
+
+- 背景：产品审查发现 Visit 状态机太死板、结案不联动、角色权限无执行，详见 `task_plan.md` Phase 6。
+
+### FIX-1 ✅ Visit 状态机扩展
+- **文件**: `backend/models/visit_state_machine.go`
+- 新增合法跳跃路径：`in_progress/diagnosed/treated → closed`（直接结案捷径）
+- 原有完整路径全部保留，互不影响
+- `go build ./...` ✅
+
+### FIX-2 ✅ Visit 结案 → Appointment 自动 completed 联动
+- **文件**: `backend/handlers/clinic_visits.go`
+- 在 `UpdateClinicVisit` 事务内追加：当 `targetStatus == closed` 时，`WHERE id = appointment_id AND status = in_progress → UPDATE status = completed`
+- 完整事务保证原子性
+- `go build ./...` ✅
+
+### FIX-3 ✅ 后端角色权限中间件
+- **新文件**: `backend/middleware/role_check.go`
+- `RequireRoles(...UserRole)` — 通用白名单中间件
+- `RequireAppointmentStatusRole()` — 粗粒度：允许 Owner/Manager/Doctor/Frontdesk，拒绝 Staff
+- `go build ./...` ✅
+
+### FIX-4 ✅ 路由挂载角色鉴权 + Handler 细粒度约束
+- **文件**: `backend/cmd/server/main.go`（路由层挂 middleware）
+- **文件**: `backend/handlers/clinic_appointments.go`（handler 内 Frontdesk/Doctor 操作限制）
+- 权限矩阵：
+  - 读取：Owner/Manager/Doctor/Frontdesk
+  - 预约状态变更：Frontdesk(confirm/check-in/cancel) | Doctor(in_progress/completed) | Owner/Manager(all)
+  - 病例写入/结案/文件：Owner/Manager/Doctor
+  - 保险：Owner/Manager only
+- `go build ./...` ✅
+
+### FIX-5 ✅ 前端 Visit 页面操作栏重设计
+- **文件**: `frontend/app/merchant/clinic/visits/[id]/page.tsx`
+- 新增 `NEXT_STEP_MAP`：每个中间状态有明确的"下一步"按钮（"完成诊断 →"、"完成处置 →"、"完成处方 →"、"结案"）
+- 新增 `DIRECT_CLOSE_STATUSES`：in_progress/diagnosed/treated 显示"直接结案"次级按钮
+- 修复 `handlePushToApp`：改为正确调用 `pushToApp` store 方法（之前错误地修改了状态）
+- 结案后展示"推送到 App"（含"重新推送"逻辑）
+- `npm run build` ✅（17 页面全部编译）
+
+---
+
+### P0-FIX-1 ✅ 诊断/处置/处方表单改为可编辑
+- **文件**: `frontend/app/merchant/clinic/visits/[id]/page.tsx`
+- **诊断 tab**：`<p>` 只读 → 输入框（名称、备注 textarea、主诊断 checkbox）
+- **处置 tab**：`<p>` 只读 → 输入框（名称、费用数字框、备注 textarea）+ 总费用汇总行
+- **处方 tab**：`<p>` 只读 → 输入框（药品名称、用法/剂量、频率、疗程天数、医嘱 textarea）
+- 同步修复 CRIT-F2：fetchVisit 守卫由 `!visit` 改为 `!visit || visit.id !== visitId`
+- `npm run build` ✅（17 页面全部编译，零报错）
+
+---
+
+### 部署文档产出 ✅
+- **文件**: `docs/deployment_guide_plan_b.md`
+- 方案 B 完整部署指南：Supabase + Fly.io + Vercel
+- 覆盖内容：
+  - 架构总览与数据流图
+  - Supabase 建项目 + Realtime 开启步骤
+  - 6 项代码改动清单（端口环境变量化、CORS 中间件、Dockerfile、fly.toml、Next.js proxy 环境变量化、Supabase Realtime 客户端集成）
+  - Fly.io 部署全流程（含 secrets、GitHub Actions CI/CD）
+  - Vercel 部署全流程（含环境变量配置）
+  - 域名 + HTTPS 配置
+  - 测试清单（多角色、权限、Realtime、持久化）
+  - 故障排查指南（504/502、CORS、Realtime 不工作）
+  - 成本明细（免费层 $0 → 正式 $30/月 → 规模化 $85/月）
+  - 扩容路径

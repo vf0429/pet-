@@ -1,24 +1,13 @@
 'use client'
 
 import { MerchantSyncStatusVM, SyncChannelVM } from '@/lib/api'
+import { useI18n } from '@/lib/i18n'
+import { getPushConsumerStatusLabel } from '@/lib/i18n-labels'
 
 interface SyncStatusCardProps {
   syncStatus: MerchantSyncStatusVM | null
   isLoading?: boolean
   businessType: 'shop' | 'clinic'
-}
-
-function formatRelativeTime(isoString: string | null): string {
-  if (!isoString) return 'Never'
-  const date = new Date(isoString)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMin = Math.floor(diffMs / 60000)
-  if (diffMin < 1) return 'Just now'
-  if (diffMin < 60) return `${diffMin}m ago`
-  const diffHr = Math.floor(diffMin / 60)
-  if (diffHr < 24) return `${diffHr}h ago`
-  return date.toLocaleDateString('en-HK')
 }
 
 function getChannelStatus(channel: SyncChannelVM): 'healthy' | 'warning' | 'error' {
@@ -45,6 +34,7 @@ function getStatusColor(status: 'healthy' | 'warning' | 'error'): {
 function SyncRow({ label, channel }: { label: string; channel: SyncChannelVM }) {
   const status = getChannelStatus(channel)
   const colors = getStatusColor(status)
+  const { pick, formatRelativeTime } = useI18n()
 
   return (
     <div className="flex items-center justify-between text-sm">
@@ -55,12 +45,12 @@ function SyncRow({ label, channel }: { label: string; channel: SyncChannelVM }) 
       <div className="flex items-center gap-3 text-right">
         {channel.pendingCount > 0 && (
           <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-            {channel.pendingCount} pending
+            {pick('{count} pending', '{count} 筆待處理', { count: channel.pendingCount })}
           </span>
         )}
         {channel.failedCount > 0 && (
           <span className="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">
-            {channel.failedCount} failed
+            {pick('{count} failed', '{count} 筆失敗', { count: channel.failedCount })}
           </span>
         )}
         <span className="text-xs text-slate-400">{formatRelativeTime(channel.lastSyncedAt)}</span>
@@ -71,6 +61,7 @@ function SyncRow({ label, channel }: { label: string; channel: SyncChannelVM }) 
 
 export default function SyncStatusCard({ syncStatus, isLoading, businessType }: SyncStatusCardProps) {
   const isShop = businessType === 'shop'
+  const { pick, formatRelativeTime, locale } = useI18n()
 
   if (isLoading) {
     return (
@@ -87,8 +78,8 @@ export default function SyncStatusCard({ syncStatus, isLoading, businessType }: 
   if (!syncStatus) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-medium text-slate-500">App 同步状态</h3>
-        <p className="mt-2 text-xs text-slate-400">No data available</p>
+        <h3 className="text-sm font-medium text-slate-500">{pick('App sync status', 'App 同步狀態')}</h3>
+        <p className="mt-2 text-xs text-slate-400">{pick('No data available', '目前沒有資料')}</p>
       </div>
     )
   }
@@ -101,7 +92,7 @@ export default function SyncStatusCard({ syncStatus, isLoading, businessType }: 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-900">App 同步状态</h3>
+        <h3 className="text-sm font-semibold text-slate-900">{pick('App sync status', 'App 同步狀態')}</h3>
         {syncStatus.apiKey && (
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
             {syncStatus.apiKey.masked}
@@ -111,41 +102,39 @@ export default function SyncStatusCard({ syncStatus, isLoading, businessType }: 
 
       <div className="mt-4 space-y-3">
         {isShop ? (
-          <SyncRow label="订单" channel={syncStatus.orders} />
+          <SyncRow label={pick('Orders', '訂單')} channel={syncStatus.orders} />
         ) : (
           <>
-            <SyncRow label="预约" channel={syncStatus.appointments} />
-            <SyncRow label="病历" channel={syncStatus.medicalRecords} />
+            <SyncRow label={pick('Appointments', '預約')} channel={syncStatus.appointments} />
+            <SyncRow label={pick('Medical records', '病歷')} channel={syncStatus.medicalRecords} />
           </>
         )}
       </div>
 
-      {/* Push status */}
       <div className="mt-4 border-t border-slate-100 pt-3">
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${pushDotColor}`} />
-            <span className="text-slate-600">推送服务</span>
+            <span className="text-slate-600">{pick('Push service', '推送服務')}</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-400">
-              {pushStatus.notificationsSentToday} sent today
+              {pick('{count} sent today', '今日已發送 {count} 筆', { count: pushStatus.notificationsSentToday })}
             </span>
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${pushColor} bg-slate-50`}>
-              {pushStatus.consumerStatus}
+              {getPushConsumerStatusLabel(locale, pushStatus.consumerStatus)}
             </span>
           </div>
         </div>
         {pushStatus.lastSuccessAt && (
           <p className="mt-1 text-xs text-slate-400">
-            Last success: {formatRelativeTime(pushStatus.lastSuccessAt)}
+            {pick('Last success: {time}', '上次成功：{time}', { time: formatRelativeTime(pushStatus.lastSuccessAt) })}
           </p>
         )}
       </div>
 
-      {/* Generated at */}
       <p className="mt-3 text-xs text-slate-400">
-        Updated {formatRelativeTime(syncStatus.generatedAt)}
+        {pick('Updated {time}', '更新於 {time}', { time: formatRelativeTime(syncStatus.generatedAt) })}
       </p>
     </div>
   )

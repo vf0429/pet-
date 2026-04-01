@@ -3083,3 +3083,110 @@ export async function fulfillClinicReminder(
     lastFulfilledAt: response.data.last_fulfilled_at,
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Create APIs
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DoctorDTO { id: number; name: string }
+
+export async function listClinicDoctors(): Promise<DoctorDTO[]> {
+  const response = await apiFetch<ApiEnvelopeDTO<{ doctors: DoctorDTO[] }>>('/clinic/doctors', {
+    method: 'GET',
+    headers: { 'X-Business-Type': 'clinic' },
+  })
+  return response.data.doctors
+}
+
+export interface CreateAppointmentParams {
+  petName: string
+  petOwnerName: string
+  petOwnerPhone: string
+  visitType: string
+  doctorId: number
+  scheduledAt: string // RFC3339
+  notes?: string
+  patientId?: number
+}
+
+export async function createClinicAppointment(params: CreateAppointmentParams): Promise<{ id: number }> {
+  const response = await apiFetch<ApiEnvelopeDTO<{ id: number }>>('/clinic/appointments', {
+    method: 'POST',
+    headers: { 'X-Business-Type': 'clinic' },
+    body: JSON.stringify({
+      pet_name: params.petName,
+      pet_owner_name: params.petOwnerName,
+      pet_owner_phone: params.petOwnerPhone,
+      visit_type: params.visitType,
+      doctor_id: params.doctorId,
+      scheduled_at: params.scheduledAt,
+      notes: params.notes ?? '',
+      patient_id: params.patientId,
+    }),
+  })
+  return { id: response.data.id }
+}
+
+export interface CreatePatientParams {
+  name: string
+  gender: string
+  species?: string
+  breed?: string
+  dateOfBirth?: string
+  weight?: number
+  weightUnit?: string
+  microchip?: string
+  notes?: string
+  clientId?: number
+  ownerFirstName?: string
+  ownerLastName?: string
+  ownerPhone?: string
+  ownerEmail?: string
+}
+
+export async function createClinicPatient(params: CreatePatientParams): Promise<{ id: number }> {
+  const response = await apiFetch<ApiEnvelopeDTO<{ id: number }>>('/clinic/patients', {
+    method: 'POST',
+    headers: { 'X-Business-Type': 'clinic' },
+    body: JSON.stringify({
+      name: params.name,
+      gender: params.gender,
+      species: params.species ?? '',
+      breed: params.breed ?? '',
+      date_of_birth: params.dateOfBirth ?? '',
+      weight: params.weight ?? 0,
+      weight_unit: params.weightUnit ?? 'kg',
+      microchip: params.microchip ?? '',
+      notes: params.notes ?? '',
+      client_id: params.clientId,
+      owner_first_name: params.ownerFirstName ?? '',
+      owner_last_name: params.ownerLastName ?? '',
+      owner_phone: params.ownerPhone ?? '',
+      owner_email: params.ownerEmail ?? '',
+    }),
+  })
+  return { id: response.data.id }
+}
+
+export interface CreateReminderParams {
+  patientId: number
+  category: string
+  name: string
+  importance: string
+  dueAt?: string // YYYY-MM-DD
+}
+
+export async function createClinicReminder(params: CreateReminderParams): Promise<{ id: number }> {
+  const response = await apiFetch<ApiEnvelopeDTO<{ id: number }>>('/clinic/reminders', {
+    method: 'POST',
+    headers: { 'X-Business-Type': 'clinic' },
+    body: JSON.stringify({
+      patient_id: params.patientId,
+      category: params.category,
+      name: params.name,
+      importance: params.importance,
+      due_at: params.dueAt ?? '',
+    }),
+  })
+  return { id: response.data.id }
+}

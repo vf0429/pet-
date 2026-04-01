@@ -4,17 +4,18 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { useAuthStore } from '@/store/auth'
+import { useI18n } from '@/lib/i18n'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-function getErrorMessage(status: ReturnType<typeof useAuthStore.getState>['loginStatus']) {
+function getErrorMessage(status: ReturnType<typeof useAuthStore.getState>['loginStatus'], pick: (en: string, zhHK: string) => string) {
   switch (status) {
     case 'error_invalid_credentials':
-      return '密码错误或账号不存在'
+      return pick('Incorrect password or account not found', '密碼錯誤或帳號不存在')
     case 'error_account_suspended':
-      return '账号已被停用，请联系管理员'
+      return pick('This account has been suspended. Please contact your administrator.', '帳號已被停用，請聯絡管理員')
     case 'error_network':
-      return '网络异常，请稍后重试'
+      return pick('Network error. Please try again shortly.', '網路異常，請稍後重試')
     default:
       return ''
   }
@@ -34,6 +35,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('Test123!')
   const [showPassword, setShowPassword] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
+  const { pick } = useI18n()
 
   useEffect(() => {
     hydrateFromCookie()
@@ -45,7 +47,7 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, router])
 
-  const submitError = useMemo(() => getErrorMessage(loginStatus), [loginStatus])
+  const submitError = useMemo(() => getErrorMessage(loginStatus, pick), [loginStatus, pick])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -53,12 +55,12 @@ export default function LoginPage() {
     setLoginStatus('idle')
 
     if (!EMAIL_REGEX.test(email)) {
-      setValidationError('请输入有效邮箱地址')
+      setValidationError(pick('Please enter a valid email address', '請輸入有效的電子郵件地址'))
       return
     }
 
     if (password.length < 8 || password.length > 72) {
-      setValidationError('密码长度需为 8 到 72 位')
+      setValidationError(pick('Password must be 8 to 72 characters long', '密碼長度需為 8 到 72 個字元'))
       return
     }
 
@@ -70,7 +72,7 @@ export default function LoginPage() {
       <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
         <div className="rounded-2xl border border-slate-800 bg-slate-900 px-8 py-10 text-center text-slate-200 shadow-2xl">
           <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-slate-700 border-t-sky-400" />
-          <p className="text-sm">正在检查登录状态...</p>
+          <p className="text-sm">{pick('Checking sign-in status...', '正在檢查登入狀態...')}</p>
         </div>
       </main>
     )
@@ -83,12 +85,12 @@ export default function LoginPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sky-600">PetWell</p>
           <h1 className="mt-3 text-3xl font-bold text-slate-900">Merchant Portal</h1>
           <p className="mt-2 text-sm text-slate-500">
-            Sign in to access your merchant dashboard and business context.
+            {pick('Sign in to access your merchant dashboard and business context.', '登入後即可存取商戶儀表板與業務場景。')}
           </p>
         </div>
 
         <div className="mb-6 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-700">
-          登录后将自动建立 24 小时 Session，并根据账号权限进入对应业务视图。
+          {pick('After sign-in, a 24-hour session will be created automatically and you will enter the correct business view based on your permissions.', '登入後會自動建立 24 小時工作階段，並依帳號權限進入對應業務畫面。')}
         </div>
 
         <form className="space-y-5" onSubmit={handleSubmit}>
@@ -119,14 +121,14 @@ export default function LoginPage() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 pr-16 text-sm text-slate-900 outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-100"
-                placeholder="Enter your password"
+                placeholder={pick('Enter your password', '請輸入密碼')}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((value) => !value)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 transition hover:bg-slate-100"
               >
-                {showPassword ? '隐藏' : '显示'}
+                {showPassword ? pick('Hide', '隱藏') : pick('Show', '顯示')}
               </button>
             </div>
           </div>
@@ -142,7 +144,7 @@ export default function LoginPage() {
             disabled={loginStatus === 'submitting'}
             className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
           >
-            {loginStatus === 'submitting' ? 'Signing in...' : 'Sign in'}
+            {loginStatus === 'submitting' ? pick('Signing in...', '登入中...') : pick('Sign in', '登入')}
           </button>
         </form>
       </div>

@@ -345,6 +345,20 @@ func UpdateClinicVisit(db *gorm.DB) gin.HandlerFunc {
 				return err
 			}
 
+			// Auto-complete the linked Appointment when Visit is closed
+			if req.TargetStatus != nil &&
+				models.ClinicVisitStatus(*req.TargetStatus) == models.ClinicVisitStatusClosed {
+				if err := tx.Model(&models.ClinicAppointment{}).
+					Where("id = ? AND tenant_id = ? AND status = ?",
+						visit.AppointmentID, tenantID, models.ClinicAppointmentStatusInProgress).
+					Updates(map[string]interface{}{
+						"status":     models.ClinicAppointmentStatusCompleted,
+						"updated_at": now,
+					}).Error; err != nil {
+					return err
+				}
+			}
+
 			// Full-replace: diagnoses
 			if req.Diagnoses != nil {
 				if err := tx.Where("visit_id = ? AND tenant_id = ?", visit.ID, tenantID).
