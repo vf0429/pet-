@@ -1,34 +1,16 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useClinicAppointmentsStore } from '@/store/clinic'
-import { AppointmentStatus, VisitType, UpdateAppointmentStatusParams } from '@/lib/api'
+import Link from 'next/link'
+
 import StatusBadge from '@/components/StatusBadge'
+import { AppointmentStatus, UpdateAppointmentStatusParams } from '@/lib/api'
+import { useI18n } from '@/lib/i18n'
+import { getAppointmentStatusLabel, getVisitTypeLabel } from '@/lib/i18n-labels'
+import { useClinicAppointmentsStore } from '@/store/clinic'
 
-const STATUS_TABS: { label: string; value: string }[] = [
-  { label: '全部', value: '' },
-  { label: '待确认', value: 'pending' },
-  { label: '已确认', value: 'confirmed' },
-  { label: '已签到', value: 'checked_in' },
-  { label: '就诊中', value: 'in_progress' },
-  { label: '已完成', value: 'completed' },
-  { label: '已取消', value: 'cancelled' },
-]
-
-const VISIT_TYPE_LABELS: Record<VisitType, string> = {
-  vaccine: '疫苗接种',
-  checkup: '常规检查',
-  surgery: '手术',
-  emergency: '急诊',
-  dental: '牙科',
-  followup: '复诊',
-}
-
-function formatDateTime(isoString: string) {
-  const date = new Date(isoString)
-  return date.toLocaleTimeString('en-HK', { hour: '2-digit', minute: '2-digit', hour12: false })
-}
+const STATUS_TABS = ['', 'pending', 'confirmed', 'checked_in', 'in_progress', 'completed', 'cancelled'] as const
 
 interface CancelModalProps {
   appointmentId: number
@@ -39,15 +21,19 @@ interface CancelModalProps {
 
 function CancelModal({ appointmentId, onConfirm, onClose, isLoading }: CancelModalProps) {
   const [reason, setReason] = useState('')
+  const { pick } = useI18n()
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-        <h3 className="text-lg font-semibold text-slate-900">取消预约 #{appointmentId}</h3>
-        <p className="mt-1 text-sm text-slate-500">请填写取消原因</p>
+        <h3 className="text-lg font-semibold text-slate-900">
+          {pick('Cancel appointment #{id}', '取消預約 #{id}', { id: appointmentId })}
+        </h3>
+        <p className="mt-1 text-sm text-slate-500">{pick('Please provide a reason', '請填寫取消原因')}</p>
         <textarea
           className="mt-4 w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
           rows={3}
-          placeholder="例：顾客主动取消"
+          placeholder={pick('Example: Customer requested cancellation', '例如：顧客主動取消')}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
@@ -57,7 +43,7 @@ function CancelModal({ appointmentId, onConfirm, onClose, isLoading }: CancelMod
             onClick={onClose}
             className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
-            返回
+            {pick('Back', '返回')}
           </button>
           <button
             type="button"
@@ -65,7 +51,7 @@ function CancelModal({ appointmentId, onConfirm, onClose, isLoading }: CancelMod
             onClick={() => onConfirm(reason)}
             className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
           >
-            {isLoading ? '处理中...' : '确认取消'}
+            {isLoading ? pick('Processing...', '處理中...') : pick('Confirm cancellation', '確認取消')}
           </button>
         </div>
       </div>
@@ -76,6 +62,7 @@ function CancelModal({ appointmentId, onConfirm, onClose, isLoading }: CancelMod
 export default function ClinicAppointmentsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { pick, locale, formatDateTime } = useI18n()
 
   const {
     appointments,
@@ -97,6 +84,7 @@ export default function ClinicAppointmentsPage() {
 
   const [cancelTarget, setCancelTarget] = useState<number | null>(null)
   const [dateInput, setDateInput] = useState(filters.date)
+  const [searchInput, setSearchInput] = useState(filters.q)
 
   useEffect(() => {
     const statusFromUrl = searchParams.get('status') as AppointmentStatus | null
@@ -104,53 +92,69 @@ export default function ClinicAppointmentsPage() {
       setFilters({ status: statusFromUrl })
     }
     fetchAppointments()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const handleTabChange = useCallback((status: string) => {
-    setFilters({ status })
-    fetchAppointments({ status: status as AppointmentStatus | undefined })
-  }, [setFilters, fetchAppointments])
+  const handleSearch = useCallback(() => {
+    setFilters({ q: searchInput })
+    fetchAppointments({ q: searchInput || undefined })
+  }, [searchInput, setFilters, fetchAppointments])
 
-  const handleDateChange = useCallback((date: string) => {
-    setDateInput(date)
-    setFilters({ date })
-    fetchAppointments({ date })
-  }, [setFilters, fetchAppointments])
+  const handleTabChange = useCallback(
+    (status: string) => {
+      setFilters({ status })
+      fetchAppointments({ status: status as AppointmentStatus | undefined })
+    },
+    [setFilters, fetchAppointments]
+  )
 
-  const handleViewChange = useCallback((newView: 'list' | 'matrix') => {
-    setView(newView)
-    fetchAppointments({ view: newView })
-  }, [setView, fetchAppointments])
+  const handleDateChange = useCallback(
+    (date: string) => {
+      setDateInput(date)
+      setFilters({ date })
+      fetchAppointments({ date })
+    },
+    [setFilters, fetchAppointments]
+  )
 
-  const handleStatusAction = useCallback(async (
-    id: number,
-    targetStatus: AppointmentStatus,
-    cancelReason?: string
-  ) => {
-    const params: UpdateAppointmentStatusParams = { targetStatus, cancelReason }
-    try {
-      const result = await updateStatus(id, params)
-      if (targetStatus === 'in_progress' && result.visitId) {
-        router.push(`/merchant/clinic/visits/${result.visitId}`)
+  const handleViewChange = useCallback(
+    (nextView: 'list' | 'matrix') => {
+      setView(nextView)
+      fetchAppointments({ view: nextView })
+    },
+    [setView, fetchAppointments]
+  )
+
+  const handleStatusAction = useCallback(
+    async (id: number, targetStatus: AppointmentStatus, cancelReason?: string) => {
+      const params: UpdateAppointmentStatusParams = { targetStatus, cancelReason }
+      try {
+        const result = await updateStatus(id, params)
+        if (targetStatus === 'in_progress' && result.visitId) {
+          router.push(`/merchant/clinic/visits/${result.visitId}`)
+        }
+      } catch {
+        // handled in store
       }
-    } catch {
-      // error shown via statusUpdateError
-    }
-  }, [updateStatus, router])
+    },
+    [router, updateStatus]
+  )
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">预约管理</h1>
-          <p className="mt-1 text-sm text-slate-500">管理所有诊所预约，切换列表或排班矩阵视图</p>
+          <h1 className="text-2xl font-bold text-slate-900">{pick('Appointments', '預約管理')}</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {pick(
+              'Manage all clinic appointments and switch between list and schedule matrix views.',
+              '管理所有診所預約，並切換清單或排班矩陣視圖。'
+            )}
+          </p>
         </div>
       </div>
 
-      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* View Toggle */}
         <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
           <button
             type="button"
@@ -159,7 +163,7 @@ export default function ClinicAppointmentsPage() {
               view === 'list' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
             }`}
           >
-            列表视图
+            {pick('List view', '清單檢視')}
           </button>
           <button
             type="button"
@@ -168,51 +172,65 @@ export default function ClinicAppointmentsPage() {
               view === 'matrix' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
             }`}
           >
-            排班矩阵
+            {pick('Schedule matrix', '排班矩陣')}
           </button>
         </div>
 
-        {/* Date Picker */}
         <input
           type="date"
           value={dateInput}
           onChange={(e) => handleDateChange(e.target.value)}
           className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
         />
+
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder={pick('Search patient or owner…', '搜尋患者或主人…')}
+            className="w-52 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
+          <button
+            type="button"
+            onClick={handleSearch}
+            className="rounded-xl bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700"
+          >
+            {pick('Search', '搜尋')}
+          </button>
+        </div>
       </div>
 
-      {/* Status Tabs (list view only) */}
       {view === 'list' && (
         <div className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
-          {STATUS_TABS.map((tab) => (
+          {STATUS_TABS.map((status) => (
             <button
-              key={tab.value}
+              key={status}
               type="button"
-              onClick={() => handleTabChange(tab.value)}
+              onClick={() => handleTabChange(status)}
               className={`rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition ${
-                filters.status === tab.value
+                filters.status === status
                   ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              {tab.label}
+              {status === '' ? pick('All', '全部') : getAppointmentStatusLabel(locale, status)}
             </button>
           ))}
         </div>
       )}
 
-      {/* Error */}
       {(error || statusUpdateError) && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
           <p className="text-sm text-rose-600">{error || statusUpdateError}</p>
         </div>
       )}
 
-      {/* List View */}
       {view === 'list' && (
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 px-5 py-4">
-            <p className="text-sm text-slate-500">共 {total} 条预约</p>
+            <p className="text-sm text-slate-500">{pick('{total} appointments', '共 {total} 筆預約', { total })}</p>
           </div>
 
           {isLoading ? (
@@ -233,36 +251,49 @@ export default function ClinicAppointmentsPage() {
             </div>
           ) : appointments.length === 0 ? (
             <div className="p-10 text-center">
-              <p className="text-sm text-slate-500">暂无预约数据</p>
+              <p className="text-sm text-slate-500">{pick('No appointments found', '目前沒有預約資料')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 text-left">
-                    <th className="px-5 py-3 font-medium text-slate-500">时间</th>
-                    <th className="px-5 py-3 font-medium text-slate-500">宠物名</th>
-                    <th className="px-5 py-3 font-medium text-slate-500">主人</th>
-                    <th className="px-5 py-3 font-medium text-slate-500">就诊类型</th>
-                    <th className="px-5 py-3 font-medium text-slate-500">分配医生</th>
-                    <th className="px-5 py-3 font-medium text-slate-500">状态</th>
-                    <th className="px-5 py-3 font-medium text-slate-500">操作</th>
+                    <th className="px-5 py-3 font-medium text-slate-500">{pick('Time', '時間')}</th>
+                    <th className="px-5 py-3 font-medium text-slate-500">{pick('Pet', '寵物名')}</th>
+                    <th className="px-5 py-3 font-medium text-slate-500">{pick('Owner', '主人')}</th>
+                    <th className="px-5 py-3 font-medium text-slate-500">{pick('Visit type', '就診類型')}</th>
+                    <th className="px-5 py-3 font-medium text-slate-500">{pick('Assigned doctor', '分配醫生')}</th>
+                    <th className="px-5 py-3 font-medium text-slate-500">{pick('Status', '狀態')}</th>
+                    <th className="px-5 py-3 font-medium text-slate-500">{pick('Actions', '操作')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {appointments.map((appt) => (
                     <tr key={appt.id} className="hover:bg-slate-50">
                       <td className="px-5 py-4 font-medium text-slate-900 whitespace-nowrap">
-                        {formatDateTime(appt.scheduledAt)}
+                        {formatDateTime(appt.scheduledAt, {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false,
+                        })}
                       </td>
-                      <td className="px-5 py-4 text-slate-900 font-medium">{appt.petName}</td>
+                      <td className="px-5 py-4 font-medium text-slate-900">
+                        {appt.patientId ? (
+                          <Link
+                            href={`/merchant/clinic/patients/${appt.patientId}`}
+                            className="text-sky-700 hover:underline"
+                          >
+                            {appt.petName}
+                          </Link>
+                        ) : (
+                          appt.petName
+                        )}
+                      </td>
                       <td className="px-5 py-4 text-slate-600">
                         <div>{appt.petOwnerName}</div>
                         <div className="text-xs text-slate-400">{appt.petOwnerPhone}</div>
                       </td>
-                      <td className="px-5 py-4 text-slate-600">
-                        {VISIT_TYPE_LABELS[appt.visitType] ?? appt.visitType}
-                      </td>
+                      <td className="px-5 py-4 text-slate-600">{getVisitTypeLabel(locale, appt.visitType)}</td>
                       <td className="px-5 py-4 text-slate-600">{appt.doctorName}</td>
                       <td className="px-5 py-4">
                         <StatusBadge status={appt.status} size="sm" />
@@ -277,7 +308,7 @@ export default function ClinicAppointmentsPage() {
                                 onClick={() => handleStatusAction(appt.id, 'confirmed')}
                                 className="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50"
                               >
-                                确认预约
+                                {pick('Confirm', '確認預約')}
                               </button>
                               <button
                                 type="button"
@@ -285,7 +316,7 @@ export default function ClinicAppointmentsPage() {
                                 onClick={() => setCancelTarget(appt.id)}
                                 className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                               >
-                                拒绝
+                                {pick('Decline', '拒絕')}
                               </button>
                             </>
                           )}
@@ -297,7 +328,7 @@ export default function ClinicAppointmentsPage() {
                                 onClick={() => handleStatusAction(appt.id, 'checked_in')}
                                 className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                               >
-                                签到
+                                {pick('Check in', '報到')}
                               </button>
                               <button
                                 type="button"
@@ -305,7 +336,7 @@ export default function ClinicAppointmentsPage() {
                                 onClick={() => setCancelTarget(appt.id)}
                                 className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                               >
-                                取消
+                                {pick('Cancel', '取消')}
                               </button>
                             </>
                           )}
@@ -316,11 +347,11 @@ export default function ClinicAppointmentsPage() {
                               onClick={() => handleStatusAction(appt.id, 'in_progress')}
                               className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-50"
                             >
-                              开始就诊
+                              {pick('Start visit', '開始就診')}
                             </button>
                           )}
                           {appt.status === 'in_progress' && (
-                            <span className="text-xs text-slate-400">就诊中</span>
+                            <span className="text-xs text-slate-400">{pick('In progress', '就診中')}</span>
                           )}
                         </div>
                       </td>
@@ -331,26 +362,36 @@ export default function ClinicAppointmentsPage() {
             </div>
           )}
 
-          {/* Pagination */}
           {total > 20 && (
             <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4">
-              <p className="text-sm text-slate-500">第 {page} 页，共 {Math.ceil(total / 20)} 页</p>
+              <p className="text-sm text-slate-500">
+                {pick('Page {page} of {totalPages}', '第 {page} 頁，共 {totalPages} 頁', {
+                  page,
+                  totalPages: Math.ceil(total / 20),
+                })}
+              </p>
               <div className="flex gap-2">
                 <button
                   type="button"
                   disabled={page <= 1}
-                  onClick={() => { setPage(page - 1); fetchAppointments({ page: page - 1 }) }}
+                  onClick={() => {
+                    setPage(page - 1)
+                    fetchAppointments({ page: page - 1 })
+                  }}
                   className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm disabled:opacity-40"
                 >
-                  上一页
+                  {pick('Previous', '上一頁')}
                 </button>
                 <button
                   type="button"
                   disabled={page * 20 >= total}
-                  onClick={() => { setPage(page + 1); fetchAppointments({ page: page + 1 }) }}
+                  onClick={() => {
+                    setPage(page + 1)
+                    fetchAppointments({ page: page + 1 })
+                  }}
                   className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm disabled:opacity-40"
                 >
-                  下一页
+                  {pick('Next', '下一頁')}
                 </button>
               </div>
             </div>
@@ -358,30 +399,29 @@ export default function ClinicAppointmentsPage() {
         </div>
       )}
 
-      {/* Matrix View */}
       {view === 'matrix' && (
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           {isLoading ? (
             <div className="p-8 text-center">
               <div className="animate-pulse">
-                <div className="h-6 w-48 mx-auto rounded bg-slate-200" />
+                <div className="mx-auto h-6 w-48 rounded bg-slate-200" />
                 <div className="mt-4 h-64 rounded bg-slate-100" />
               </div>
             </div>
           ) : !matrixData ? (
             <div className="p-8 text-center">
-              <p className="text-sm text-slate-500">暂无排班数据</p>
+              <p className="text-sm text-slate-500">{pick('No schedule data', '目前沒有排班資料')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="sticky left-0 z-10 bg-slate-50 px-4 py-3 text-left font-medium text-slate-500 min-w-[120px]">
-                      医生
+                    <th className="sticky left-0 z-10 min-w-[120px] bg-slate-50 px-4 py-3 text-left font-medium text-slate-500">
+                      {pick('Doctor', '醫生')}
                     </th>
                     {matrixData.timeSlots.map((slot) => (
-                      <th key={slot} className="px-3 py-3 text-center font-medium text-slate-500 min-w-[90px]">
+                      <th key={slot} className="min-w-[90px] px-3 py-3 text-center font-medium text-slate-500">
                         {slot}
                       </th>
                     ))}
@@ -394,12 +434,12 @@ export default function ClinicAppointmentsPage() {
                         {doctor.doctorName}
                       </td>
                       {matrixData.timeSlots.map((timeSlot) => {
-                        const slot = doctor.slots.find((s) => s.time === timeSlot)
+                        const slot = doctor.slots.find((item) => item.time === timeSlot)
                         if (!slot || slot.status === 'available') {
                           return (
                             <td key={timeSlot} className="px-2 py-2 text-center">
-                              <div className="mx-auto h-14 w-full max-w-[80px] rounded-lg border border-dashed border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer flex items-center justify-center">
-                                <span className="text-xs text-slate-300">空</span>
+                              <div className="mx-auto flex h-14 w-full max-w-[80px] cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 hover:bg-slate-100">
+                                <span className="text-xs text-slate-300">{pick('Empty', '空')}</span>
                               </div>
                             </td>
                           )
@@ -408,15 +448,15 @@ export default function ClinicAppointmentsPage() {
                         return (
                           <td key={timeSlot} className="px-2 py-2 text-center">
                             <div
-                              className={`mx-auto h-14 w-full max-w-[80px] rounded-lg p-1.5 cursor-pointer ${
+                              className={`mx-auto h-14 w-full max-w-[80px] cursor-pointer rounded-lg p-1.5 ${
                                 isInProgress
                                   ? 'bg-cyan-600 text-white'
-                                  : 'bg-cyan-50 text-cyan-700 border border-cyan-200'
+                                  : 'border border-cyan-200 bg-cyan-50 text-cyan-700'
                               }`}
                             >
-                              <p className="text-xs font-medium truncate">{slot.petName}</p>
-                              <p className={`text-[10px] truncate ${isInProgress ? 'text-cyan-100' : 'text-cyan-500'}`}>
-                                {slot.visitType ? VISIT_TYPE_LABELS[slot.visitType] : ''}
+                              <p className="truncate text-xs font-medium">{slot.petName}</p>
+                              <p className={`truncate text-[10px] ${isInProgress ? 'text-cyan-100' : 'text-cyan-500'}`}>
+                                {slot.visitType ? getVisitTypeLabel(locale, slot.visitType) : ''}
                               </p>
                             </div>
                           </td>
@@ -431,7 +471,6 @@ export default function ClinicAppointmentsPage() {
         </div>
       )}
 
-      {/* Cancel Modal */}
       {cancelTarget !== null && (
         <CancelModal
           appointmentId={cancelTarget}

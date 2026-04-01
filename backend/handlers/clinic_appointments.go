@@ -19,6 +19,7 @@ type ListAppointmentsQuery struct {
 	View     string `form:"view,default=list"`
 	Status   string `form:"status"`
 	Date     string `form:"date"`
+	Q        string `form:"q"` // search by pet name or owner name
 	DoctorID *uint  `form:"doctor_id"`
 	Page     int    `form:"page,default=1"`
 	PerPage  int    `form:"per_page,default=20"`
@@ -27,6 +28,7 @@ type ListAppointmentsQuery struct {
 // AppointmentListItem represents a single appointment in the list response
 type AppointmentListItem struct {
 	ID            uint   `json:"id"`
+	PatientID     *uint  `json:"patient_id"`
 	PetName       string `json:"pet_name"`
 	PetOwnerName  string `json:"pet_owner_name"`
 	PetOwnerPhone string `json:"pet_owner_phone"`
@@ -135,6 +137,10 @@ func ListClinicAppointments(db *gorm.DB) gin.HandlerFunc {
 		if query.DoctorID != nil {
 			baseQuery = baseQuery.Where("doctor_id = ?", *query.DoctorID)
 		}
+		if query.Q != "" {
+			like := "%" + query.Q + "%"
+			baseQuery = baseQuery.Where("pet_name LIKE ? OR pet_owner_name LIKE ? OR pet_owner_phone LIKE ?", like, like, like)
+		}
 
 		var total int64
 		baseQuery.Count(&total)
@@ -151,6 +157,7 @@ func ListClinicAppointments(db *gorm.DB) gin.HandlerFunc {
 		for i, a := range appointments {
 			items[i] = AppointmentListItem{
 				ID:            a.ID,
+				PatientID:     a.PatientID,
 				PetName:       a.PetName,
 				PetOwnerName:  a.PetOwnerName,
 				PetOwnerPhone: a.PetOwnerPhone,
@@ -356,6 +363,34 @@ func UpdateClinicAppointmentStatus(db *gorm.DB) gin.HandlerFunc {
 			}
 			return
 		}
+
+		// Role-based action restrictions:
+		//   Frontdesk  → may only confirm, check-in, or cancel (not start/complete a visit)
+		//   Doctor     → may only start visit (in_progress) or complete (completed); cannot confirm, check-in, or cancel
+		//   Manager / Owner → unrestricted
+		role := authCtx.Role
+		switch role {
+		case models.UserRoleFrontdesk:
+			allowed := targetStatus == models.ClinicAppointmentStatusConfirmed ||
+				targetStatus == models.ClinicAppointmentStatusCheckedIn ||
+				targetStatus == models.ClinicAppointmentStatusCancelled
+			if !allowed {
+				c.JSON(http.StatusForbidden, gin.H{"code": 40301, "data": nil, "message": "frontdesk may only confirm, check-in, or cancel appointments"})
+				return
+			}
+		case models.UserRoleDoctor:
+			allowed := targetStatus == models.ClinicAppointmentStatusInProgress ||
+				targetStatus == models.ClinicAppointmentStatusCompleted
+			if !allowed {
+				c.JSON(http.StatusForbidden, gin.H{"code": 40301, "data": nil, "message": "doctor may only start or complete a visit"})
+				return
+			}
+		case models.UserRoleStaff:
+			// Staff has no clinic appointment permissions
+			c.JSON(http.StatusForbidden, gin.H{"code": 40301, "data": nil, "message": "insufficient role for this action"})
+			return
+		}
+		// UserRoleOwner and UserRoleManager: no additional restriction
 
 		// Build sync queue payload
 		payload := map[string]interface{}{

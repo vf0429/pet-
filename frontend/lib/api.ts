@@ -811,6 +811,7 @@ export interface ClinicStatsDTO {
 
 export interface ClinicAppointmentDTO {
   id: number
+  patient_id: number | null
   pet_name: string
   pet_owner_name: string
   pet_owner_phone: string
@@ -1019,6 +1020,7 @@ export interface ClinicStatsVM {
 
 export interface ClinicAppointmentVM {
   id: number
+  patientId: number | null
   petName: string
   petOwnerName: string
   petOwnerPhone: string
@@ -1198,6 +1200,7 @@ export function toClinicStatsVM(dto: ClinicStatsDTO): ClinicStatsVM {
 export function toClinicAppointmentVM(dto: ClinicAppointmentDTO): ClinicAppointmentVM {
   return {
     id: dto.id,
+    patientId: dto.patient_id ?? null,
     petName: dto.pet_name,
     petOwnerName: dto.pet_owner_name,
     petOwnerPhone: dto.pet_owner_phone,
@@ -1367,6 +1370,7 @@ export interface GetClinicAppointmentsParams {
   view?: 'list' | 'matrix'
   status?: AppointmentStatus
   date?: string
+  q?: string
   doctorId?: number
   page?: number
   perPage?: number
@@ -1379,6 +1383,7 @@ export async function getClinicAppointments(
   if (params.view) searchParams.set('view', params.view)
   if (params.status) searchParams.set('status', params.status)
   if (params.date) searchParams.set('date', params.date)
+  if (params.q) searchParams.set('q', params.q)
   if (params.doctorId) searchParams.set('doctor_id', String(params.doctorId))
   if (params.page) searchParams.set('page', String(params.page))
   if (params.perPage) searchParams.set('per_page', String(params.perPage))

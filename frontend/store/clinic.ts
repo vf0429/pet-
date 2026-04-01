@@ -103,6 +103,7 @@ interface ClinicAppointmentsState {
   filters: {
     status: string
     date: string
+    q: string
     doctorId: number | null
   }
   view: 'list' | 'matrix'
@@ -133,6 +134,7 @@ export const useClinicAppointmentsStore = create<ClinicAppointmentsState>((set, 
   filters: {
     status: '',
     date: new Date().toISOString().split('T')[0],
+    q: '',
     doctorId: null,
   },
   view: 'list',
@@ -152,6 +154,7 @@ export const useClinicAppointmentsStore = create<ClinicAppointmentsState>((set, 
         view: params?.view ?? currentView,
         status: (currentFilters.status as AppointmentStatus) || undefined,
         date: params?.date ?? currentFilters.date,
+        q: params?.q ?? (currentFilters.q || undefined),
         doctorId: currentFilters.doctorId ?? undefined,
         page: params?.page ?? get().page,
         perPage: params?.perPage ?? get().perPage,
@@ -161,6 +164,7 @@ export const useClinicAppointmentsStore = create<ClinicAppointmentsState>((set, 
         set({
           appointments: data.appointments.map((a) => ({
             id: a.id,
+            patientId: a.patient_id ?? null,
             petName: a.pet_name,
             petOwnerName: a.pet_owner_name,
             petOwnerPhone: a.pet_owner_phone,
