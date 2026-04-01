@@ -43,9 +43,9 @@ export default function ShopAnalyticsPage() {
   const hasData =
     !!data &&
     (data.summary.totalOrders > 0 ||
-      data.dailyRevenue.length > 0 ||
-      data.categoryBreakdown.length > 0 ||
-      data.topProducts.length > 0)
+      (data.dailyRevenue?.length ?? 0) > 0 ||
+      (data.categoryBreakdown?.length ?? 0) > 0 ||
+      (data.topProducts?.length ?? 0) > 0)
 
   return (
     <div className="space-y-6">

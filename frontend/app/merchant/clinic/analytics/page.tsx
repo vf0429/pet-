@@ -24,10 +24,10 @@ export default function ClinicAnalyticsPage() {
   const hasData =
     !!data &&
     (data.summary.totalVisits > 0 ||
-      data.dailyVisits.length > 0 ||
-      data.diagnosisBreakdown.length > 0 ||
-      data.doctorWorkload.length > 0 ||
-      data.appointmentAttendance.length > 0)
+      (data.dailyVisits?.length ?? 0) > 0 ||
+      (data.diagnosisBreakdown?.length ?? 0) > 0 ||
+      (data.doctorWorkload?.length ?? 0) > 0 ||
+      (data.appointmentAttendance?.length ?? 0) > 0)
 
   return (
     <div className="space-y-6">
