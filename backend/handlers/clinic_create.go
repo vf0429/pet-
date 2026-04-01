@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"petwell-merchant-backend/middleware"
 	"petwell-merchant-backend/models"
@@ -51,21 +52,109 @@ func CreateClinicAppointment(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		appt := models.ClinicAppointment{
-			TenantID:      authCtx.TenantID,
-			PetName:       req.PetName,
-			PetOwnerName:  req.PetOwnerName,
-			PetOwnerPhone: req.PetOwnerPhone,
-			VisitType:     req.VisitType,
-			DoctorID:      req.DoctorID,
-			ScheduledAt:   scheduledAt,
-			Status:        models.ClinicAppointmentStatusPending,
-			Notes:         req.Notes,
-			PatientID:     req.PatientID,
-			ClientID:      req.ClientID,
+		// Clinic times are stored in local timezone (Asia/Hong_Kong = UTC+8).
+		// Convert scheduledAt to local before comparing with open/close strings.
+		clinicLoc, _ := time.LoadLocation("Asia/Hong_Kong")
+		scheduledLocal := scheduledAt.In(clinicLoc)
+
+		// ─── Layer 1: Clinic operating hours ─────────────────────────────────
+		dayOfWeek := int(scheduledLocal.Weekday()) // 0=Sunday in Go
+		var tmpl models.ClinicScheduleTemplate
+		tmplErr := db.Where("tenant_id = ? AND day_of_week = ?", authCtx.TenantID, dayOfWeek).First(&tmpl).Error
+		if tmplErr == nil {
+			// Template found — enforce it
+			if !tmpl.IsActive {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"code": 40010, "data": nil,
+					"message": "clinic is not open on this day",
+				})
+				return
+			}
+			timeStr := scheduledLocal.Format("15:04")
+			if timeStr < tmpl.OpenTime || timeStr >= tmpl.CloseTime {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"code": 40011, "data": nil,
+					"message": fmt.Sprintf("appointment time %s is outside clinic hours (%s–%s)", timeStr, tmpl.OpenTime, tmpl.CloseTime),
+				})
+				return
+			}
+		}
+		// If no template configured yet → skip hours check (don't block during initial setup)
+
+		// ─── Layer 2: Doctor shift (is this doctor working?) ─────────────────
+		// Use local date to find the doctor's shift row for this calendar day.
+		localY, localM, localD := scheduledLocal.Date()
+		dateStart := time.Date(localY, localM, localD, 0, 0, 0, 0, time.UTC)
+		dateEnd := dateStart.Add(24 * time.Hour)
+		var shift models.DoctorShift
+		if db.Where(
+			"tenant_id = ? AND doctor_id = ? AND shift_date >= ? AND shift_date < ?",
+			authCtx.TenantID, req.DoctorID, dateStart, dateEnd,
+		).First(&shift).Error == nil {
+			if shift.IsOff {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"code": 40012, "data": nil,
+					"message": "doctor is not available on this date",
+				})
+				return
+			}
+			// If shift has custom hours, check against them (also local time)
+			if shift.StartTime != "" && shift.EndTime != "" {
+				timeStr := scheduledLocal.Format("15:04")
+				if timeStr < shift.StartTime || timeStr >= shift.EndTime {
+					c.JSON(http.StatusBadRequest, gin.H{
+						"code": 40013, "data": nil,
+						"message": fmt.Sprintf("appointment time %s is outside doctor's working hours (%s–%s)", timeStr, shift.StartTime, shift.EndTime),
+					})
+					return
+				}
+			}
 		}
 
-		if err := db.Create(&appt).Error; err != nil {
+		// ─── Layer 3: Conflict check + INSERT (inside transaction) ───────────
+		// Wrapping in a transaction ensures that two concurrent requests cannot
+		// both pass the conflict check and both insert — SQLite serialises writes.
+		var createdAppt models.ClinicAppointment
+		txErr := db.Transaction(func(tx *gorm.DB) error {
+			var conflictCount int64
+			tx.Model(&models.ClinicAppointment{}).
+				Where(
+					"tenant_id = ? AND doctor_id = ? AND scheduled_at = ? AND status != ?",
+					authCtx.TenantID, req.DoctorID, scheduledAt,
+					string(models.ClinicAppointmentStatusCancelled),
+				).Count(&conflictCount)
+			if conflictCount > 0 {
+				return fmt.Errorf("SLOT_CONFLICT")
+			}
+
+			appt := models.ClinicAppointment{
+				TenantID:      authCtx.TenantID,
+				PetName:       req.PetName,
+				PetOwnerName:  req.PetOwnerName,
+				PetOwnerPhone: req.PetOwnerPhone,
+				VisitType:     req.VisitType,
+				DoctorID:      req.DoctorID,
+				ScheduledAt:   scheduledAt,
+				Status:        models.ClinicAppointmentStatusPending,
+				Notes:         req.Notes,
+				PatientID:     req.PatientID,
+				ClientID:      req.ClientID,
+			}
+			if err := tx.Create(&appt).Error; err != nil {
+				return err
+			}
+			createdAppt = appt
+			return nil
+		})
+
+		if txErr != nil {
+			if txErr.Error() == "SLOT_CONFLICT" {
+				c.JSON(http.StatusConflict, gin.H{
+					"code": 40901, "data": nil,
+					"message": "this time slot is already booked for the selected doctor, please choose another time",
+				})
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 50001, "data": nil, "message": "failed to create appointment"})
 			return
 		}
@@ -74,18 +163,18 @@ func CreateClinicAppointment(db *gorm.DB) gin.HandlerFunc {
 			"code":    0,
 			"message": "ok",
 			"data": gin.H{
-				"id":              appt.ID,
-				"pet_name":        appt.PetName,
-				"pet_owner_name":  appt.PetOwnerName,
-				"pet_owner_phone": appt.PetOwnerPhone,
-				"visit_type":      appt.VisitType,
-				"doctor_id":       appt.DoctorID,
+				"id":              createdAppt.ID,
+				"pet_name":        createdAppt.PetName,
+				"pet_owner_name":  createdAppt.PetOwnerName,
+				"pet_owner_phone": createdAppt.PetOwnerPhone,
+				"visit_type":      createdAppt.VisitType,
+				"doctor_id":       createdAppt.DoctorID,
 				"doctor_name":     doctor.Name,
-				"scheduled_at":    appt.ScheduledAt.Format(time.RFC3339),
-				"status":          string(appt.Status),
-				"notes":           appt.Notes,
-				"patient_id":      appt.PatientID,
-				"created_at":      appt.CreatedAt.Format(time.RFC3339),
+				"scheduled_at":    createdAppt.ScheduledAt.Format(time.RFC3339),
+				"status":          string(createdAppt.Status),
+				"notes":           createdAppt.Notes,
+				"patient_id":      createdAppt.PatientID,
+				"created_at":      createdAppt.CreatedAt.Format(time.RFC3339),
 			},
 		})
 	}

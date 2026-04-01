@@ -68,6 +68,7 @@ func main() {
 		&models.ClinicPatient{},
 		&models.HealthReminder{},
 		&models.ClinicInvoice{},
+		&models.DoctorShift{},
 	); err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
@@ -78,6 +79,7 @@ func main() {
 
 	// Seed initial data
 	seedData(db)
+	seedClinicScheduleTemplates(db)
 
 	// Setup Gin router
 	r := gin.Default()
@@ -131,6 +133,15 @@ func main() {
 			// Doctors list (for create appointment form)
 			clinicGroup.GET("/doctors", clinicReadRoles, handlers.ListClinicDoctors(db))
 
+			// Availability — returns per-slot availability for a doctor on a date
+			clinicGroup.GET("/availability", clinicReadRoles, handlers.GetDoctorAvailability(db))
+
+			// Weekly schedule grid
+			clinicGroup.GET("/schedule", clinicReadRoles, handlers.GetWeeklySchedule(db))
+
+			// Clinic operating hours (schedule templates)
+			clinicGroup.GET("/schedule-templates", clinicReadRoles, handlers.GetScheduleTemplates(db))
+
 			// Appointments create
 			clinicGroup.POST("/appointments", clinicReadRoles, handlers.CreateClinicAppointment(db))
 
@@ -142,6 +153,12 @@ func main() {
 
 			// Visit read — Owner/Manager/Doctor/Frontdesk (Frontdesk needs to see status)
 			clinicGroup.GET("/visits/:id", clinicReadRoles, handlers.GetClinicVisit(db))
+
+			// Doctor shift management — Owner/Manager only
+			scheduleWriteRoles := middleware.RequireRoles(models.UserRoleOwner, models.UserRoleManager)
+			clinicGroup.PUT("/doctor-shifts", scheduleWriteRoles, handlers.UpsertDoctorShift(db))
+			clinicGroup.DELETE("/doctor-shifts/:id", scheduleWriteRoles, handlers.DeleteDoctorShift(db))
+			clinicGroup.PUT("/schedule-templates/:day", scheduleWriteRoles, handlers.UpdateScheduleTemplate(db))
 
 			// Visit write (clinical content + status) — Owner/Manager/Doctor only
 			visitWriteRoles := middleware.RequireRoles(
@@ -1242,4 +1259,39 @@ func seedClinicPatientsAndClients(db *gorm.DB) {
 
 	log.Printf("Clinic patients/clients seed: %d clients, %d patients created",
 		len(ownerToClient), len(petToPatient))
+}
+
+// seedClinicScheduleTemplates seeds default operating hours for all tenants
+// that do not yet have any ClinicScheduleTemplate rows.
+// Mon–Fri 09:00–18:00 (slot 30 min), Sat 09:00–13:00, Sun closed.
+func seedClinicScheduleTemplates(db *gorm.DB) {
+	var tenants []models.Tenant
+	db.Find(&tenants)
+
+	for _, tenant := range tenants {
+		var existing int64
+		db.Model(&models.ClinicScheduleTemplate{}).
+			Where("tenant_id = ?", tenant.ID).Count(&existing)
+		if existing > 0 {
+			continue // already seeded
+		}
+
+		templates := []models.ClinicScheduleTemplate{
+			// Sun (0) — closed
+			{TenantID: tenant.ID, DayOfWeek: 0, OpenTime: "09:00", CloseTime: "13:00", SlotDurationMin: 30, IsActive: false},
+			// Mon (1) – Fri (5) — 09:00–18:00
+			{TenantID: tenant.ID, DayOfWeek: 1, OpenTime: "09:00", CloseTime: "18:00", SlotDurationMin: 30, IsActive: true},
+			{TenantID: tenant.ID, DayOfWeek: 2, OpenTime: "09:00", CloseTime: "18:00", SlotDurationMin: 30, IsActive: true},
+			{TenantID: tenant.ID, DayOfWeek: 3, OpenTime: "09:00", CloseTime: "18:00", SlotDurationMin: 30, IsActive: true},
+			{TenantID: tenant.ID, DayOfWeek: 4, OpenTime: "09:00", CloseTime: "18:00", SlotDurationMin: 30, IsActive: true},
+			{TenantID: tenant.ID, DayOfWeek: 5, OpenTime: "09:00", CloseTime: "18:00", SlotDurationMin: 30, IsActive: true},
+			// Sat (6) — half day
+			{TenantID: tenant.ID, DayOfWeek: 6, OpenTime: "09:00", CloseTime: "13:00", SlotDurationMin: 30, IsActive: true},
+		}
+		if err := db.Create(&templates).Error; err != nil {
+			log.Printf("Failed to seed schedule templates for tenant %d: %v", tenant.ID, err)
+		} else {
+			log.Printf("Seeded clinic schedule templates for tenant %d (%s)", tenant.ID, tenant.Name)
+		}
+	}
 }
