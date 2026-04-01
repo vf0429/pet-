@@ -3190,3 +3190,125 @@ export async function createClinicReminder(params: CreateReminderParams): Promis
   })
   return { id: response.data.id }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scheduling APIs
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface AvailabilitySlot {
+  time: string          // "09:00"
+  available: boolean
+  reason?: string       // "booked" | "doctor_off"
+  appointment_id?: number
+  pet_name?: string
+  appt_status?: string
+}
+
+export interface DoctorAvailabilityDTO {
+  doctor_id: number
+  doctor_name: string
+  date: string
+  is_working: boolean
+  open_time?: string
+  close_time?: string
+  slots: AvailabilitySlot[]
+}
+
+export async function getDoctorAvailability(
+  doctorId: number,
+  date: string // YYYY-MM-DD
+): Promise<DoctorAvailabilityDTO> {
+  const response = await apiFetch<ApiEnvelopeDTO<DoctorAvailabilityDTO>>(
+    `/clinic/availability?doctor_id=${doctorId}&date=${date}`,
+    { method: 'GET', headers: { 'X-Business-Type': 'clinic' } }
+  )
+  return response.data
+}
+
+// ─── Schedule Templates ───────────────────────────────────────────────────────
+
+export interface ScheduleTemplateDTO {
+  id: number
+  day_of_week: number   // 0=Sun … 6=Sat
+  day_name: string
+  open_time: string
+  close_time: string
+  slot_duration_min: number
+  is_active: boolean
+}
+
+export async function getScheduleTemplates(): Promise<ScheduleTemplateDTO[]> {
+  const response = await apiFetch<ApiEnvelopeDTO<{ templates: ScheduleTemplateDTO[] }>>(
+    '/clinic/schedule-templates',
+    { method: 'GET', headers: { 'X-Business-Type': 'clinic' } }
+  )
+  return response.data.templates
+}
+
+export async function updateScheduleTemplate(
+  dayOfWeek: number,
+  params: { open_time: string; close_time: string; slot_duration_min?: number; is_active: boolean }
+): Promise<ScheduleTemplateDTO> {
+  const response = await apiFetch<ApiEnvelopeDTO<ScheduleTemplateDTO>>(
+    `/clinic/schedule-templates/${dayOfWeek}`,
+    {
+      method: 'PUT',
+      headers: { 'X-Business-Type': 'clinic' },
+      body: JSON.stringify({ ...params, slot_duration_min: params.slot_duration_min ?? 30 }),
+    }
+  )
+  return response.data
+}
+
+// ─── Weekly Schedule ──────────────────────────────────────────────────────────
+
+export interface DayScheduleInfo {
+  is_working: boolean
+  start_time: string
+  end_time: string
+  is_custom: boolean
+  note?: string
+  shift_id?: number
+}
+
+export interface WeeklyScheduleDTO {
+  week_start: string
+  doctors: DoctorDTO[]
+  days: string[]                                          // ["2026-04-07", …]
+  schedule: Record<string, Record<string, DayScheduleInfo>> // doctorId → date → info
+}
+
+export async function getWeeklySchedule(weekStart?: string): Promise<WeeklyScheduleDTO> {
+  const qs = weekStart ? `?week_start=${weekStart}` : ''
+  const response = await apiFetch<ApiEnvelopeDTO<WeeklyScheduleDTO>>(
+    `/clinic/schedule${qs}`,
+    { method: 'GET', headers: { 'X-Business-Type': 'clinic' } }
+  )
+  return response.data
+}
+
+// ─── Doctor Shifts ────────────────────────────────────────────────────────────
+
+export interface UpsertDoctorShiftParams {
+  doctor_id: number
+  date: string       // YYYY-MM-DD
+  is_off: boolean
+  start_time?: string
+  end_time?: string
+  note?: string
+}
+
+export async function upsertDoctorShift(params: UpsertDoctorShiftParams): Promise<void> {
+  await apiFetch<ApiEnvelopeDTO<unknown>>('/clinic/doctor-shifts', {
+    method: 'PUT',
+    headers: { 'X-Business-Type': 'clinic' },
+    body: JSON.stringify(params),
+  })
+}
+
+export async function deleteDoctorShift(shiftId: number): Promise<void> {
+  await apiFetch<ApiEnvelopeDTO<unknown>>(`/clinic/doctor-shifts/${shiftId}`, {
+    method: 'DELETE',
+    headers: { 'X-Business-Type': 'clinic' },
+  })
+}

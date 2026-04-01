@@ -29,6 +29,7 @@ const CLINIC_NAV_ITEMS: NavItem[] = [
   { label: 'Clinic Overview', href: '/merchant/clinic/dashboard', businessType: 'clinic' },
   { label: 'Analytics', href: '/merchant/clinic/analytics', businessType: 'clinic' },
   { label: 'Appointments', href: '/merchant/clinic/appointments', businessType: 'clinic' },
+  { label: 'Schedule', href: '/merchant/clinic/schedule', businessType: 'clinic' },
   { label: 'Patients', href: '/merchant/clinic/patients', businessType: 'clinic' },
   { label: 'Reminders', href: '/merchant/clinic/reminders', businessType: 'clinic', badgeKey: 'overdueReminders' },
   { label: 'Followups', href: '/merchant/clinic/followups', businessType: 'clinic' },
@@ -149,7 +150,7 @@ export default function Sidebar() {
             'Analytics': pick('Analytics', '數據分析'),
             'Orders': pick('Orders', '訂單管理'),
             'Products': pick('Products', '商品管理'),
-            'Schedule': pick('Schedule', '排程管理'),
+            'Schedule': pick('Schedule', '排班管理'),
           }
           const displayLabel = labelMap[item.label] ?? item.label
           const badgeCount = item.badgeKey ? (badges[item.badgeKey] ?? 0) : 0
