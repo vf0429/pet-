@@ -180,7 +180,6 @@ export const useClinicAppointmentsStore = create<ClinicAppointmentsState>((set, 
           })),
           total: data.total,
           page: data.page,
-          perPage: data.per_page,
           hasMore: data.has_more,
           matrixData: null,
           isLoading: false,
@@ -382,7 +381,6 @@ export const useClinicFollowupsStore = create<ClinicFollowupsState>((set, get) =
         followups: data.followups,
         total: data.total,
         page: data.page,
-        perPage: data.perPage,
         hasMore: data.hasMore,
         isLoading: false,
       })
@@ -473,7 +471,6 @@ export const useClinicPharmacyStore = create<ClinicPharmacyState>((set, get) => 
         items: data.items,
         total: data.total,
         page: data.page,
-        perPage: data.perPage,
         isLoading: false,
       })
     } catch (error) {
@@ -604,7 +601,6 @@ export const useClinicInsuranceStore = create<ClinicInsuranceState>((set, get) =
         claims: data.claims,
         claimsTotal: data.total,
         claimsPage: data.page,
-        claimsPerPage: data.perPage,
         claimsHasMore: data.hasMore,
         isLoadingClaims: false,
       })
@@ -715,7 +711,6 @@ export const useClinicClientsStore = create<ClinicClientsState>((set, get) => ({
         clients: data.clients,
         total: data.total,
         page: data.page,
-        perPage: data.perPage,
         hasMore: data.hasMore,
         isLoading: false,
       })
@@ -805,7 +800,6 @@ export const useClinicPatientsStore = create<ClinicPatientsState>((set, get) => 
         patients: data.patients,
         total: data.total,
         page: data.page,
-        perPage: data.perPage,
         hasMore: data.hasMore,
         isLoading: false,
       })
@@ -894,7 +888,8 @@ export const useClinicRemindersStore = create<ClinicRemindersState>((set, get) =
         reminders: data.reminders,
         total: data.total,
         page: data.page,
-        perPage: data.perPage,
+        // Never overwrite perPage from the response — keep the store's own preference
+        // so that background badge-count fetches (per_page:1) don't corrupt pagination
         hasMore: data.hasMore,
         counts: data.counts,
         isLoading: false,

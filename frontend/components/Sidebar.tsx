@@ -4,9 +4,8 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import { BusinessType } from '@/lib/api'
+import { BusinessType, listClinicReminders } from '@/lib/api'
 import { useAuthStore, useSwitchBusiness } from '@/store/auth'
-import { useClinicRemindersStore } from '@/store/clinic'
 import { useI18n } from '@/lib/i18n'
 
 type NavItem = {
@@ -49,14 +48,17 @@ export default function Sidebar() {
   const [switchError, setSwitchError] = useState<string | null>(null)
   const { pick } = useI18n()
 
-  // Load overdue reminder count for badge
-  const overdueCount = useClinicRemindersStore((s) => s.counts.overdue)
-  const fetchReminders = useClinicRemindersStore((s) => s.fetchReminders)
+  // Load overdue reminder count for badge — use direct API call to avoid polluting the shared store's perPage
+  const [overdueCount, setOverdueCount] = useState(0)
   useEffect(() => {
     if (user?.activeBusinessType === 'clinic') {
-      fetchReminders({ status: 'overdue', per_page: 1 })
+      listClinicReminders({ status: 'overdue', per_page: 1 })
+        .then((r) => setOverdueCount(r.counts.overdue))
+        .catch(() => {})
+    } else {
+      setOverdueCount(0)
     }
-  }, [user?.activeBusinessType, fetchReminders])
+  }, [user?.activeBusinessType])
 
   const badges: Record<string, number> = { overdueReminders: overdueCount }
 
