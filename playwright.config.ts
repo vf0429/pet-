@@ -15,10 +15,5 @@ export default defineConfig({
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
   // 自动在测试前启动 Next.js dev server
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: true,
-    timeout: 60_000,
-  },
+  // webServer 由 run_phase.sh 手動啟動，確保前後端都就緒後才執行測試
 });

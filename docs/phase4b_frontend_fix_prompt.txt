@@ -1,0 +1,33 @@
+项目根目录：/Users/vfzzz/Desktop/petwell-merchant
+
+开始前必须：
+1. 先读取并遵守以下文件：
+   - /Users/vfzzz/Desktop/petwell-merchant/task_plan.md
+   - /Users/vfzzz/Desktop/petwell-merchant/findings.md
+   - /Users/vfzzz/Desktop/petwell-merchant/progress.md
+   - /Users/vfzzz/Desktop/petwell-merchant/docs/phase4b_validation_summary.md
+2. 按 Planning with Files 工作：关键发现写回 findings.md，阶段进度写回 progress.md，阶段状态写回 task_plan.md。
+3. 只修复 QA 报告里的 frontend contract drift，不要扩散功能范围。
+
+你是 Frontend agent。请修复以下两个问题：
+
+## Fix 1: X-Business-Type 不要写死为 clinic
+- 文件重点：`frontend/lib/api.ts`、`frontend/store/realtime.ts`、`frontend/hooks/usePendingTasks.ts`
+- `getMerchantSyncStatus` 和 `getMerchantPendingTasks` 必须接收 `businessType: 'shop' | 'clinic'`
+- 调用方（store / hook / dashboard 页面）必须把当前页面业务类型传进去
+
+## Fix 2: pending-tasks DTO 对齐 backend 最小返回
+backend 当前返回：
+- `type`
+- `entity_id`
+- `payload`
+- `created_at`
+
+前端当前 richer DTO 期待过多字段。请改成：
+- 在 `frontend/lib/api.ts` 内兼容 backend 最小 DTO，并转换成当前 store/toast 可消费的 `PendingTaskVM`
+- 可以从 `type` 和 `payload` 推导 `title` / `summary` / `toastVariant` / `dedupeKey`
+- 保持现有 Toast UI 和 store 尽量少改
+
+要求：
+- 完成后执行 `cd /Users/vfzzz/Desktop/petwell-merchant/frontend && npm run build`
+- 把修复摘要和构建结果写回 planning files

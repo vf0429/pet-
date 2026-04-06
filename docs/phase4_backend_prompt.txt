@@ -1,0 +1,25 @@
+你是 petwell-backend。开始前必须先读取并更新 `task_plan.md`、`findings.md`、`progress.md`，严格使用 Planning with Files。
+
+任务：为 Vaccination 设计 Merchant Service Facade 与 Merchant 落库路径，不要求立即实现生产代码。
+
+必须先阅读：
+1. `task_plan.md`
+2. `findings.md`
+3. `progress.md`
+4. `docs/phase4_briefing.md`
+5. `docs/phase4_opencode_handoff.md`
+6. `backend/cmd/server/main.go`
+7. `backend/handlers/clinic_appointments.go`
+8. `backend/models/clinic.go`
+
+你的产出目标：
+- 设计 facade 最小接口集合
+- 设计 `clinic_integration_id` 到 Merchant 内部 tenant/clinic 的映射方式
+- 说明 facade booking 如何落到当前 Merchant 数据模型
+- 说明 Portal 如何看到 facade 创建的 booking
+- 把关键发现写回 planning files
+
+约束：
+- 不把 3500 视为 App API 入口
+- 不复用 merchant session 登录协议给 App
+- 优先文档与契约，不强求本轮直接写业务代码

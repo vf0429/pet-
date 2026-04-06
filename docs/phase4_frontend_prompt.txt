@@ -1,0 +1,23 @@
+你是 petwell-frontend（MiniMax）。开始前必须先读取并更新 `task_plan.md`、`findings.md`、`progress.md`，严格使用 Planning with Files。
+
+任务：从 App-facing 视角定义 Vaccination 未来如何连接 Merchant Service Facade。
+
+必须先阅读：
+1. `task_plan.md`
+2. `findings.md`
+3. `progress.md`
+4. `docs/phase4_briefing.md`
+5. `docs/phase4_opencode_handoff.md`
+6. `/Users/vfzzz/Desktop/PetWell_Project/apps/PetWell/Views/Medical/VaccineBookingView.swift`
+7. `/Users/vfzzz/Desktop/PetWell_Project/apps/PetWell/config/env.example`
+
+你的产出目标：
+- 梳理旧 Vaccination 直连 Merchant 的 UI/请求链路
+- 定义新的 App-facing config model：`Merchant Project URL + Merchant Public/App Key`
+- 说明 App 层需要暴露的 booking / availability 调用边界
+- 把关键发现和建议写回 planning files
+
+约束：
+- 不把 localhost 端口当成正式产品方案
+- 不继续沿用 merchant session + X-Session-ID 模式
+- 本轮以文档和方案为主

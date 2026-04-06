@@ -1,0 +1,24 @@
+项目根目录：/Users/vfzzz/Desktop/petwell-merchant
+
+开始前必须：
+1. 先读取并遵守以下文件：
+   - /Users/vfzzz/Desktop/petwell-merchant/task_plan.md
+   - /Users/vfzzz/Desktop/petwell-merchant/findings.md
+   - /Users/vfzzz/Desktop/petwell-merchant/progress.md
+   - /Users/vfzzz/Desktop/petwell-merchant/docs/phase4b_validation_summary.md
+2. 按 Planning with Files 工作：关键发现写回 findings.md，阶段进度写回 progress.md，阶段状态写回 task_plan.md。
+
+你是 QA agent。请修复 `tests/phase4/phase4_p0.spec.ts` 的脆弱点，目标是让它更稳定：
+
+## 需要修的地方
+1. 不要再用会触发 strict mode 的 `getByText('Happy Paws')` 这种模糊选择器。
+   - 改成更稳定的 heading / subtitle / card 文本选择器。
+2. 不要强依赖“tenant 1 一定存在 paid order”这种易被上一次测试污染的 seed 假设。
+   - 请把第一个用例改成更稳健：
+     - 仍然验证 `/sync/status`、`/pending-tasks`、tenant isolation
+     - 但不要依赖 paid order 一定存在
+     - 如果需要触发 queue，可以改用更稳定的现有数据或先探测可用状态
+3. 修完后执行：
+   - 仅运行 `npx playwright test tests/phase4/phase4_p0.spec.ts --reporter=list`
+   - 如果失败，继续修到至少比当前更稳定，并把失败点记录下来
+4. 最后把修复摘要和测试结果写回 planning files。

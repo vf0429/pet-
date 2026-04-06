@@ -1,0 +1,21 @@
+你是 petwell-qa。开始前必须先读取并更新 `task_plan.md`、`findings.md`、`progress.md`，严格使用 Planning with Files。
+
+任务：为 Vaccination 首期联调输出 documentation / checklist，而不是直接编写完整 E2E。
+
+必须先阅读：
+1. `task_plan.md`
+2. `findings.md`
+3. `progress.md`
+4. `docs/phase4_briefing.md`
+5. `docs/phase4_opencode_handoff.md`
+6. App 与 Merchant 相关现状代码/文档
+
+你的产出目标：
+- 输出 App↔Merchant integration guide 的结构建议
+- 列出 Vaccination 当前旧链路与目标链路的验证点
+- 列出 future functions 接 Merchant 时必须检查的 checklist
+- 把关键结论写回 planning files
+
+约束：
+- 本轮重心是文档与验证策略
+- 必须明确区分 Portal URL、internal API、facade URL

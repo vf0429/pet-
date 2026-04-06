@@ -1,0 +1,29 @@
+# Phase 5 Frontend Agent — Step 4 Analytics UI
+
+请先读取并同步 planning files：
+- /Users/vfzzz/Desktop/petwell-merchant/task_plan.md
+- /Users/vfzzz/Desktop/petwell-merchant/findings.md
+- /Users/vfzzz/Desktop/petwell-merchant/progress.md
+
+再按顺序读取：
+- /Users/vfzzz/Desktop/petwell-merchant/specs/Phase5_数据分析/Phase5_Steps.md
+- /Users/vfzzz/Desktop/petwell-merchant/specs/Phase5_数据分析/Phase5_详细计划.md
+- /Users/vfzzz/Desktop/petwell-merchant/frontend/lib/api.ts
+- /Users/vfzzz/Desktop/petwell-merchant/frontend/components/Sidebar.tsx
+
+你的角色：前端工程师。
+
+注意：前置依赖是 Step 3 backend analytics API 就绪。
+因此请先审计当前 backend/contract 是否已具备 Analytics API，再执行 Step 4。
+若接口尚未落地，请先完成：
+1. 设计并落盘前端 API types / fetch 函数骨架
+2. 创建页面与图表组件骨架
+3. 预留 loading / empty / error / retry 状态
+4. 若可继续则完成完整接线并 npm install recharts
+
+硬性要求：
+- 页面里不能直接 fetch，必须走 lib/api.ts
+- 所有数字格式化按 spec
+- 写入真实文件
+- 最后执行：cd /Users/vfzzz/Desktop/petwell-merchant/frontend && npm run build
+- 回写 progress.md / findings.md

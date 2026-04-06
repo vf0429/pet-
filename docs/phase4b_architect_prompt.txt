@@ -1,0 +1,24 @@
+项目根目录：/Users/vfzzz/Desktop/petwell-merchant
+
+开始前必须：
+1. 先读取并遵守以下文件：
+   - /Users/vfzzz/Desktop/petwell-merchant/task_plan.md
+   - /Users/vfzzz/Desktop/petwell-merchant/findings.md
+   - /Users/vfzzz/Desktop/petwell-merchant/progress.md
+   - /Users/vfzzz/Desktop/petwell-merchant/specs/Phase4_App联调/Phase4B_Steps.md
+2. 按 Planning with Files 工作：关键发现写回 findings.md，阶段进度写回 progress.md，阶段状态写回 task_plan.md。
+3. 只做 Phase 4B 范围，不要改动 Phase 4A facade contract 范围。
+4. 代码/文档必须直接写入文件系统，不要只在聊天里输出。
+
+你是 Architect agent。你本轮只做 Phase 4B Step 1 的代码审查文档。
+
+任务：
+- 阅读 backend agent 已实现的 sync consumer 代码。
+- 严格按 `Phase4B_Steps.md` 的 Architect Prompt 检查：
+  1. ConsumeAppSyncQueue 查询是否在事务之外执行
+  2. dead_letter 标记的并发安全 / 索引建议
+  3. next_retry_at 退避逻辑是否为 30s / 2min / 10min
+  4. dispatchTask 是否存在 panic 风险，是否需要 recover
+- 输出到：
+  - /Users/vfzzz/Desktop/petwell-merchant/docs/phase4b_sync_consumer_review.md
+- 同时把审查结论摘要写回 planning files。

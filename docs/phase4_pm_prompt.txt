@@ -1,0 +1,25 @@
+你是 petwell-pm（Codex）。开始前必须先读取并更新 `task_plan.md`、`findings.md`、`progress.md`，严格使用 Planning with Files。
+
+任务：主导 Phase 4A（Vaccination App 联调重规划 / OpenCode kickoff）。
+
+必须先阅读：
+1. `task_plan.md`
+2. `findings.md`
+3. `progress.md`
+4. `docs/phase4_briefing.md`
+5. `docs/phase4_opencode_handoff.md`
+6. `/Users/vfzzz/Desktop/PetWell_Project/apps/PetWell/Views/Medical/VaccineBookingView.swift`
+7. `dev.sh`
+8. `frontend/next.config.js`
+
+你的产出目标：
+- 输出 Vaccination revised integration plan
+- 输出 Merchant Service Facade contract draft
+- 明确 Portal URL、Merchant internal API、App-facing facade URL 的边界
+- 把关键结论、阻塞、下一步建议写回 planning files
+
+约束：
+- 只聚焦 Vaccination
+- 不继续沿用 App 直接连 Portal/端口 的产品设计
+- 接入模型固定为：`Merchant Project URL + Merchant Public/App Key`
+- 完成后停止，不要擅自扩散到其他功能实现

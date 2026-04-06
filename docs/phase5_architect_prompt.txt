@@ -1,0 +1,23 @@
+# Phase 5 Architect Agent — Performance Review
+
+请先读取并同步 planning files：
+- /Users/vfzzz/Desktop/petwell-merchant/task_plan.md
+- /Users/vfzzz/Desktop/petwell-merchant/findings.md
+- /Users/vfzzz/Desktop/petwell-merchant/progress.md
+
+再读取：
+- /Users/vfzzz/Desktop/petwell-merchant/specs/Phase5_数据分析/Phase5_Steps.md
+- /Users/vfzzz/Desktop/petwell-merchant/specs/Phase5_数据分析/Phase5_详细计划.md
+- /Users/vfzzz/Desktop/petwell-merchant/backend/models
+
+你的角色：系统架构师。
+
+任务：只执行 Phase 5 Step 1 的 Architect Prompt，输出性能/索引/缓存评估。
+写入：/Users/vfzzz/Desktop/petwell-merchant/docs/phase5_performance_review.md
+
+要求：
+- 明确 Index Coverage: OK / MISSING
+- 明确 Repeat Purchase Rate Accuracy 结论
+- 明确 Cache Strategy
+- 明确 Risk Level: Low / Medium / High
+- 同步在 findings.md / progress.md 写入关键结论

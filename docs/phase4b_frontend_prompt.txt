@@ -1,0 +1,23 @@
+项目根目录：/Users/vfzzz/Desktop/petwell-merchant
+
+开始前必须：
+1. 先读取并遵守以下文件：
+   - /Users/vfzzz/Desktop/petwell-merchant/task_plan.md
+   - /Users/vfzzz/Desktop/petwell-merchant/findings.md
+   - /Users/vfzzz/Desktop/petwell-merchant/progress.md
+   - /Users/vfzzz/Desktop/petwell-merchant/specs/Phase4_App联调/Phase4B_Steps.md
+2. 按 Planning with Files 工作：关键发现写回 findings.md，阶段进度写回 progress.md，阶段状态写回 task_plan.md。
+3. 只做 Phase 4B 范围，不要改动 Phase 4A facade contract 范围。
+4. 代码/文档必须直接写入文件系统，不要只在聊天里输出。
+
+你是 Frontend agent。请严格按 `Phase4B_Steps.md` 执行，范围包括：
+- Step 2：Pending Tasks API 接入 + realtime store/hook
+- Step 3：Toast 通知系统 + Dashboard 接入
+
+执行要求：
+- 先检查当前前端已有 `frontend/lib/api.ts`、`frontend/store/realtime.ts`、`frontend/hooks/usePendingTasks.ts`、Toast 组件、Dashboard 页面现状，避免重复造轮子。
+- 若已有实现，按 `Phase4B_Steps.md` 对齐/修正；若缺失，再补齐。
+- 所有 API 调用统一走 `frontend/lib/api.ts`。
+- 完成后执行：
+  - cd /Users/vfzzz/Desktop/petwell-merchant/frontend && npm run build
+- 最后把完成内容、文件清单、构建结果写回 planning files。

@@ -1,0 +1,29 @@
+项目根目录：/Users/vfzzz/Desktop/petwell-merchant
+
+开始前必须：
+1. 先读取并遵守以下文件：
+   - /Users/vfzzz/Desktop/petwell-merchant/task_plan.md
+   - /Users/vfzzz/Desktop/petwell-merchant/findings.md
+   - /Users/vfzzz/Desktop/petwell-merchant/progress.md
+   - /Users/vfzzz/Desktop/petwell-merchant/specs/Phase4_App联调/Phase4B_Steps.md
+2. 按 Planning with Files 工作：关键发现写回 findings.md，阶段进度写回 progress.md，阶段状态写回 task_plan.md。
+3. 只做 Phase 4B 范围，不要改动 Phase 4A facade contract 范围。
+4. 代码/文档必须直接写入文件系统，不要只在聊天里输出。
+
+你是 Backend agent。请严格按 `Phase4B_Steps.md` 执行，范围包括：
+- Step 1：Sync Consumer Job + dead_letter
+- Step 2：Pending Tasks API + Sync Status API
+
+具体要求：
+- 先检查当前仓库实际状态，避免覆盖已有实现。
+- 优先修改：
+  - backend/models/app_sync_queue.go
+  - backend/jobs/sync_consumer.go（如不存在则创建）
+  - backend/handlers/sync.go（如不存在则创建）
+  - backend/cmd/server/main.go
+- 路由必须挂到现有 `/v1/merchant` protected group。
+- 所有查询必须 tenant scoped。
+- 完成后执行：
+  - cd /Users/vfzzz/Desktop/petwell-merchant/backend && gofmt -w ./...
+  - cd /Users/vfzzz/Desktop/petwell-merchant/backend && go build ./...
+- 最后把你完成的内容、受影响文件、构建结果写回 planning files。
