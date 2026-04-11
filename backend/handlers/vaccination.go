@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/models"
 	"strings"
 	"time"
 
@@ -323,6 +323,18 @@ func CreateVaccinationBooking(db *gorm.DB) gin.HandlerFunc {
 				return err
 			}
 
+			payload := buildAppointmentSyncPayload(
+				appointment.ID,
+				"",
+				facade.Status,
+				"",
+				time.Now(),
+				&facade,
+			)
+			if _, err := enqueueAppointmentSyncQueue(tx, binding.TenantID, appointment.ID, "booking_created", payload); err != nil {
+				return err
+			}
+
 			createdFacade = facade
 			createdAppointment = appointment
 			return nil
@@ -433,6 +445,22 @@ func CancelVaccinationBooking(db *gorm.DB) gin.HandlerFunc {
 					"cancel_reason": req.Reason,
 					"updated_at":    now,
 				}).Error; err != nil {
+					return err
+				}
+			}
+
+			if facade.InternalAppointmentID != nil {
+				cancelledFacade := facade
+				cancelledFacade.Status = "cancelled_by_user"
+				payload := buildAppointmentSyncPayload(
+					*facade.InternalAppointmentID,
+					facade.Status,
+					cancelledFacade.Status,
+					req.Reason,
+					now,
+					&cancelledFacade,
+				)
+				if _, err := enqueueAppointmentSyncQueue(tx, facade.TenantID, *facade.InternalAppointmentID, "booking_cancelled", payload); err != nil {
 					return err
 				}
 			}

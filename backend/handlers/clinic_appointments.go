@@ -1,11 +1,10 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"strconv"
 	"strings"
 	"time"
@@ -392,24 +391,15 @@ func UpdateClinicAppointmentStatus(db *gorm.DB) gin.HandlerFunc {
 		}
 		// UserRoleOwner and UserRoleManager: no additional restriction
 
-		// Build sync queue payload
-		payload := map[string]interface{}{
-			"appointment_id": appt.ID,
-			"from_status":    string(previousStatus),
-			"to_status":      string(targetStatus),
-			"cancel_reason":  req.CancelReason,
-			"changed_at":     time.Now().UTC().Format(time.RFC3339),
-		}
-		payloadJSON, _ := json.Marshal(payload)
-
 		// Execute in transaction
 		var syncQueueEntry models.AppSyncQueue
 		var newVisit *models.ClinicVisit
 
 		txErr := db.Transaction(func(tx *gorm.DB) error {
+			now := time.Now()
 			updates := map[string]interface{}{
 				"status":     targetStatus,
-				"updated_at": time.Now(),
+				"updated_at": now,
 			}
 			if targetStatus == models.ClinicAppointmentStatusCancelled {
 				updates["cancel_reason"] = req.CancelReason
@@ -430,8 +420,8 @@ func UpdateClinicAppointmentStatus(db *gorm.DB) gin.HandlerFunc {
 					AppointmentID: appt.ID,
 					PetName:       appt.PetName,
 					Status:        models.ClinicVisitStatusInProgress,
-					CreatedAt:     time.Now(),
-					UpdatedAt:     time.Now(),
+					CreatedAt:     now,
+					UpdatedAt:     now,
 				}
 				if err := tx.Create(&visit).Error; err != nil {
 					return err
@@ -439,20 +429,8 @@ func UpdateClinicAppointmentStatus(db *gorm.DB) gin.HandlerFunc {
 				newVisit = &visit
 			}
 
-			// Write sync queue entry
-			syncQueueEntry = models.AppSyncQueue{
-				TenantID:   tenantID,
-				EntityType: "appointment",
-				EntityID:   fmt.Sprintf("%d", appt.ID),
-				Action:     "status_changed",
-				Payload:    string(payloadJSON),
-				Status:     models.AppSyncQueueStatusPending,
-			}
-			if err := tx.Create(&syncQueueEntry).Error; err != nil {
-				return err
-			}
-
 			var facade models.VaccinationBookingFacade
+			payloadFacade := (*models.VaccinationBookingFacade)(nil)
 			if err := tx.Where("internal_appointment_id = ?", appt.ID).First(&facade).Error; err == nil {
 				mappedStatus := ""
 				switch targetStatus {
@@ -470,12 +448,27 @@ func UpdateClinicAppointmentStatus(db *gorm.DB) gin.HandlerFunc {
 				if mappedStatus != "" {
 					if err := tx.Model(&models.VaccinationBookingFacade{}).Where("id = ?", facade.ID).Updates(map[string]interface{}{
 						"status":     mappedStatus,
-						"updated_at": time.Now(),
+						"updated_at": now,
 					}).Error; err != nil {
 						return err
 					}
+					facade.Status = mappedStatus
 				}
+				payloadFacade = &facade
 			} else if err != nil && err != gorm.ErrRecordNotFound {
+				return err
+			}
+
+			payload := buildAppointmentSyncPayload(
+				appt.ID,
+				string(previousStatus),
+				string(targetStatus),
+				req.CancelReason,
+				now,
+				payloadFacade,
+			)
+			syncQueueEntry, err = enqueueAppointmentSyncQueue(tx, tenantID, appt.ID, "status_changed", payload)
+			if err != nil {
 				return err
 			}
 
