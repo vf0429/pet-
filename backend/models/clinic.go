@@ -40,30 +40,30 @@ func IsValidClinicAppointmentStatus(s string) bool {
 
 // ClinicAppointment represents a clinic appointment record
 type ClinicAppointment struct {
-	ID            uint                    `gorm:"primaryKey" json:"id"`
-	TenantID      uint                    `gorm:"not null;index:idx_clinic_appt_tenant_status,priority:1;index:idx_clinic_appt_tenant_date,priority:1;index:idx_clinic_appt_tenant_doctor,priority:1" json:"tenant_id"`
-	BusinessType  string                  `gorm:"size:16;not null;default:'clinic';index" json:"business_type"`
-	PetName       string                  `gorm:"size:128;not null;index" json:"pet_name"`
-	PetOwnerName  string                  `gorm:"size:128;not null;index" json:"pet_owner_name"`
-	PetOwnerPhone string                  `gorm:"size:32;not null" json:"pet_owner_phone"`
-	DoctorID      uint                    `gorm:"not null;index:idx_clinic_appt_tenant_doctor,priority:2" json:"doctor_id"`
-	VisitType     string                  `gorm:"size:32;not null;index" json:"visit_type"`
-	ScheduledAt   time.Time               `gorm:"not null;index:idx_clinic_appt_tenant_date,priority:2" json:"scheduled_at"`
-	Status        ClinicAppointmentStatus `gorm:"size:24;not null;index:idx_clinic_appt_tenant_status,priority:2" json:"status"`
-	CancelReason  string                  `gorm:"size:255" json:"cancel_reason"`
-	Notes         string                  `gorm:"type:text" json:"notes"`
-	PatientID        *uint     `gorm:"index:idx_clinic_appt_patient" json:"patient_id"`
-	ClientID         *uint     `gorm:"index:idx_clinic_appt_client" json:"client_id"`
-	AppointmentType  string    `gorm:"size:64" json:"appointment_type"`
-	DurationMinutes  int       `gorm:"default:30" json:"duration_minutes"`
-	ExternalEzyvetID *int64    `gorm:"uniqueIndex:idx_clinic_appt_ezyvet" json:"external_ezyvet_id"`
-	Source        string                  `gorm:"size:16;not null;default:'manual'" json:"source"`
-	CreatedAt     time.Time               `json:"created_at"`
-	UpdatedAt     time.Time               `json:"updated_at"`
+	ID               uint                    `gorm:"primaryKey" json:"id"`
+	TenantID         uint                    `gorm:"not null;index:idx_clinic_appt_tenant_status,priority:1;index:idx_clinic_appt_tenant_date,priority:1;index:idx_clinic_appt_tenant_doctor,priority:1" json:"tenant_id"`
+	BusinessType     string                  `gorm:"size:16;not null;default:'clinic';index" json:"business_type"`
+	PetName          string                  `gorm:"size:128;not null;index" json:"pet_name"`
+	PetOwnerName     string                  `gorm:"size:128;not null;index" json:"pet_owner_name"`
+	PetOwnerPhone    string                  `gorm:"size:32;not null" json:"pet_owner_phone"`
+	DoctorID         uint                    `gorm:"not null;index:idx_clinic_appt_tenant_doctor,priority:2" json:"doctor_id"`
+	VisitType        string                  `gorm:"size:32;not null;index" json:"visit_type"`
+	ScheduledAt      time.Time               `gorm:"not null;index:idx_clinic_appt_tenant_date,priority:2" json:"scheduled_at"`
+	Status           ClinicAppointmentStatus `gorm:"size:24;not null;index:idx_clinic_appt_tenant_status,priority:2" json:"status"`
+	CancelReason     string                  `gorm:"size:255" json:"cancel_reason"`
+	Notes            string                  `gorm:"type:text" json:"notes"`
+	PatientID        *uint                   `gorm:"index:idx_clinic_appt_patient" json:"patient_id"`
+	ClientID         *uint                   `gorm:"index:idx_clinic_appt_client" json:"client_id"`
+	AppointmentType  string                  `gorm:"size:64" json:"appointment_type"`
+	DurationMinutes  int                     `gorm:"default:30" json:"duration_minutes"`
+	ExternalEzyvetID *int64                  `gorm:"uniqueIndex:idx_clinic_appt_ezyvet" json:"external_ezyvet_id"`
+	Source           string                  `gorm:"size:16;not null;default:'manual'" json:"source"`
+	CreatedAt        time.Time               `json:"created_at"`
+	UpdatedAt        time.Time               `json:"updated_at"`
 
-	Tenant Tenant       `gorm:"foreignKey:TenantID"`
-	Doctor MerchantUser `gorm:"foreignKey:DoctorID"`
-	Visit  *ClinicVisit `gorm:"foreignKey:AppointmentID"`
+	Tenant  Tenant         `gorm:"foreignKey:TenantID"`
+	Doctor  MerchantUser   `gorm:"foreignKey:DoctorID"`
+	Visit   *ClinicVisit   `gorm:"foreignKey:AppointmentID"`
 	Patient *ClinicPatient `gorm:"foreignKey:PatientID" json:"-"`
 	Client  *ClinicClient  `gorm:"foreignKey:ClientID" json:"-"`
 }
@@ -117,13 +117,15 @@ type ClinicVisit struct {
 	PetAge                 string            `gorm:"size:32" json:"pet_age"`
 	PetWeight              float64           `gorm:"type:decimal(6,2)" json:"pet_weight"`
 	PetMedicalHistory      string            `gorm:"type:text" json:"pet_medical_history"`
-	ConsultDate      *time.Time `json:"consult_date"`
-	AssessmentNotes  string     `gorm:"type:text" json:"assessment_notes"`
-	ExternalEzyvetID *int64     `gorm:"uniqueIndex:idx_clinic_visit_ezyvet" json:"external_ezyvet_id"`
+	ConsultDate            *time.Time        `json:"consult_date"`
+	AssessmentNotes        string            `gorm:"type:text" json:"assessment_notes"`
+	ExternalEzyvetID       *int64            `gorm:"uniqueIndex:idx_clinic_visit_ezyvet" json:"external_ezyvet_id"`
 	ChiefComplaint         string            `gorm:"type:text" json:"chief_complaint"`
 	Temperature            *float64          `gorm:"type:decimal(4,1)" json:"temperature"`
 	HeartRate              *int              `json:"heart_rate"`
 	RespiratoryRate        *int              `json:"respiratory_rate"`
+	AISummary              string            `gorm:"type:text" json:"ai_summary"`
+	CareNotes              string            `gorm:"type:text" json:"care_notes"`
 	GeneralMedicationNotes string            `gorm:"type:text" json:"general_medication_notes"`
 	Status                 ClinicVisitStatus `gorm:"size:24;not null;index:idx_clinic_visits_tenant_status,priority:2" json:"status"`
 	PushedAt               *time.Time        `json:"pushed_at"`
@@ -169,21 +171,21 @@ func (ClinicDiagnosis) TableName() string {
 
 // ClinicPrescription represents a prescription record for a visit
 type ClinicPrescription struct {
-	ID           uint   `gorm:"primaryKey" json:"id"`
-	VisitID      uint   `gorm:"not null;index:idx_clinic_prescriptions_tenant_visit,priority:2" json:"visit_id"`
-	TenantID     uint   `gorm:"not null;index:idx_clinic_prescriptions_tenant_visit,priority:1" json:"tenant_id"`
-	DrugName     string `gorm:"size:255;not null" json:"drug_name"`
-	Dosage       string `gorm:"size:128;not null" json:"dosage"`
-	Frequency    string `gorm:"size:128;not null" json:"frequency"`
-	DurationDays int    `gorm:"not null;default:1" json:"duration_days"`
-	Notes        string `gorm:"type:text" json:"notes"`
-	PrescribingVetID *uint   `gorm:"index" json:"prescribing_vet_id"`
-	Instructions     string  `gorm:"type:text" json:"instructions"`
+	ID                 uint   `gorm:"primaryKey" json:"id"`
+	VisitID            uint   `gorm:"not null;index:idx_clinic_prescriptions_tenant_visit,priority:2" json:"visit_id"`
+	TenantID           uint   `gorm:"not null;index:idx_clinic_prescriptions_tenant_visit,priority:1" json:"tenant_id"`
+	DrugName           string `gorm:"size:255;not null" json:"drug_name"`
+	Dosage             string `gorm:"size:128;not null" json:"dosage"`
+	Frequency          string `gorm:"size:128;not null" json:"frequency"`
+	DurationDays       int    `gorm:"not null;default:1" json:"duration_days"`
+	Notes              string `gorm:"type:text" json:"notes"`
+	PrescribingVetID   *uint  `gorm:"index" json:"prescribing_vet_id"`
+	Instructions       string `gorm:"type:text" json:"instructions"`
 	PrescriptionStatus string `gorm:"size:32;default:'active'" json:"prescription_status"`
-	ExternalEzyvetID *int64  `gorm:"uniqueIndex:idx_clinic_rx_ezyvet" json:"external_ezyvet_id"`
+	ExternalEzyvetID   *int64 `gorm:"uniqueIndex:idx_clinic_rx_ezyvet" json:"external_ezyvet_id"`
 
-	Visit  ClinicVisit `gorm:"foreignKey:VisitID"`
-	Tenant Tenant      `gorm:"foreignKey:TenantID"`
+	Visit          ClinicVisit   `gorm:"foreignKey:VisitID"`
+	Tenant         Tenant        `gorm:"foreignKey:TenantID"`
 	PrescribingVet *MerchantUser `gorm:"foreignKey:PrescribingVetID" json:"-"`
 }
 
@@ -196,14 +198,14 @@ func (ClinicPrescription) TableName() string {
 
 // ClinicTreatment represents a treatment item for a visit
 type ClinicTreatment struct {
-	ID            uint    `gorm:"primaryKey" json:"id"`
-	VisitID       uint    `gorm:"not null;index:idx_clinic_treatments_tenant_visit,priority:2" json:"visit_id"`
-	TenantID      uint    `gorm:"not null;index:idx_clinic_treatments_tenant_visit,priority:1" json:"tenant_id"`
-	Name          string  `gorm:"size:255;not null" json:"name"`
-	PerformedByID uint    `gorm:"not null;index" json:"performed_by_id"`
-	Fee           float64 `gorm:"type:decimal(10,2);not null;default:0" json:"fee"`
-	Currency      string  `gorm:"size:8;not null;default:'HKD'" json:"currency"`
-	Notes         string  `gorm:"type:text" json:"notes"`
+	ID               uint    `gorm:"primaryKey" json:"id"`
+	VisitID          uint    `gorm:"not null;index:idx_clinic_treatments_tenant_visit,priority:2" json:"visit_id"`
+	TenantID         uint    `gorm:"not null;index:idx_clinic_treatments_tenant_visit,priority:1" json:"tenant_id"`
+	Name             string  `gorm:"size:255;not null" json:"name"`
+	PerformedByID    uint    `gorm:"not null;index" json:"performed_by_id"`
+	Fee              float64 `gorm:"type:decimal(10,2);not null;default:0" json:"fee"`
+	Currency         string  `gorm:"size:8;not null;default:'HKD'" json:"currency"`
+	Notes            string  `gorm:"type:text" json:"notes"`
 	ProductCode      string  `gorm:"size:64" json:"product_code"`
 	UnitPrice        float64 `gorm:"type:decimal(10,2)" json:"unit_price"`
 	Quantity         float64 `gorm:"type:decimal(10,2);default:1" json:"quantity"`
@@ -268,11 +270,11 @@ type PharmacyItem struct {
 	LowStockThreshold  int       `gorm:"not null;default:0" json:"low_stock_threshold"`
 	StorageCondition   string    `gorm:"size:32;not null;default:'room_temp'" json:"storage_condition"`
 	IsPrescriptionOnly bool      `gorm:"not null;default:false;index:idx_pharmacy_items_tenant_rx,priority:2" json:"is_prescription_only"`
-	ProductCode      string  `gorm:"size:64;index" json:"product_code"`
-	Barcode          string  `gorm:"size:128" json:"barcode"`
-	PricePerUnit     float64 `gorm:"type:decimal(10,2)" json:"price_per_unit"`
-	ProductType      string  `gorm:"size:32" json:"product_type"`
-	ExternalEzyvetID *int64  `gorm:"uniqueIndex:idx_pharmacy_ezyvet" json:"external_ezyvet_id"`
+	ProductCode        string    `gorm:"size:64;index" json:"product_code"`
+	Barcode            string    `gorm:"size:128" json:"barcode"`
+	PricePerUnit       float64   `gorm:"type:decimal(10,2)" json:"price_per_unit"`
+	ProductType        string    `gorm:"size:32" json:"product_type"`
+	ExternalEzyvetID   *int64    `gorm:"uniqueIndex:idx_pharmacy_ezyvet" json:"external_ezyvet_id"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
 

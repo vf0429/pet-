@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -20,6 +20,7 @@ type MeResponse struct {
 // GetMe handles GET /merchant/me
 func GetMe(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -94,6 +95,7 @@ type SwitchBusinessResponse struct {
 // SwitchBusiness handles PATCH /merchant/me/switch
 func SwitchBusiness(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, ErrorResponse{

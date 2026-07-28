@@ -231,49 +231,87 @@ function ClinicHoursPanel({ templates, onUpdated }: ClinicHoursPanelProps) {
       </div>
       <div className="divide-y divide-slate-50">
         {templates.map((t) => (
-          <div key={t.day_of_week} className="flex items-center justify-between px-4 py-2.5">
-            <div className="flex items-center gap-2 min-w-[60px]">
-              <span className={`text-sm font-medium ${t.is_active ? 'text-slate-900' : 'text-slate-400'}`}>
-                {t.day_name}
-              </span>
-              {!t.is_active && (
-                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400">
-                  {pick('Closed', '休息')}
-                </span>
-              )}
-            </div>
-            {editing === t.day_of_week ? (
+          <div key={t.day_of_week}>
+            {/* ── Summary row ── */}
+            <div className="flex items-center justify-between px-4 py-2.5">
               <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1 text-xs text-slate-500">
-                  <input type="checkbox" checked={draft.active}
-                    onChange={(e) => setDraft((d) => ({ ...d, active: e.target.checked }))} />
-                  {pick('Open', '開放')}
-                </label>
-                {draft.active && (
-                  <>
-                    <input type="time" value={draft.open}
-                      onChange={(e) => setDraft((d) => ({ ...d, open: e.target.value }))}
-                      className="rounded-lg border border-slate-200 px-2 py-1 text-xs focus:border-sky-400 focus:outline-none w-24" />
-                    <span className="text-xs text-slate-400">–</span>
-                    <input type="time" value={draft.close}
-                      onChange={(e) => setDraft((d) => ({ ...d, close: e.target.value }))}
-                      className="rounded-lg border border-slate-200 px-2 py-1 text-xs focus:border-sky-400 focus:outline-none w-24" />
-                  </>
-                )}
-                <button onClick={handleSave} disabled={saving}
-                  className="rounded-lg bg-sky-600 px-2 py-1 text-xs text-white hover:bg-sky-700 disabled:opacity-50">
-                  {saving ? '…' : pick('Save', '儲存')}
-                </button>
-                <button onClick={() => setEditing(null)}
-                  className="text-xs text-slate-400 hover:text-slate-600">✕</button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-500">
-                  {t.is_active ? `${t.open_time} – ${t.close_time}` : '—'}
+                <span className={`text-sm font-medium w-24 ${t.is_active ? 'text-slate-900' : 'text-slate-400'}`}>
+                  {t.day_name}
                 </span>
-                <button onClick={() => startEdit(t)}
-                  className="text-xs text-sky-600 hover:underline">{pick('Edit', '編輯')}</button>
+                <span className="text-xs text-slate-500">
+                  {t.is_active ? `${t.open_time} – ${t.close_time}` : (
+                    <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-slate-400">{pick('Closed', '休息')}</span>
+                  )}
+                </span>
+              </div>
+              <button
+                onClick={() => editing === t.day_of_week ? setEditing(null) : startEdit(t)}
+                className={`text-xs font-medium transition-colors ${
+                  editing === t.day_of_week
+                    ? 'text-slate-400 hover:text-slate-600'
+                    : 'text-sky-600 hover:text-sky-700'
+                }`}
+              >
+                {editing === t.day_of_week ? pick('Cancel', '取消') : pick('Edit', '編輯')}
+              </button>
+            </div>
+
+            {/* ── Expanded edit panel (vertically below, full width) ── */}
+            {editing === t.day_of_week && (
+              <div className="border-t border-sky-100 bg-sky-50 px-4 py-3 space-y-3">
+                {/* Open / Closed toggle */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <div
+                    onClick={() => setDraft((d) => ({ ...d, active: !d.active }))}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      draft.active ? 'bg-sky-500' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                      draft.active ? 'translate-x-4' : 'translate-x-1'
+                    }`} />
+                  </div>
+                  <span className="text-xs font-medium text-slate-700">
+                    {draft.active ? pick('Open', '開放出診') : pick('Closed', '不開放')}
+                  </span>
+                </label>
+
+                {/* Time range — only shown when active */}
+                {draft.active && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="mb-1 text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+                        {pick('Open', '開始')}
+                      </p>
+                      <input
+                        type="time"
+                        value={draft.open}
+                        onChange={(e) => setDraft((d) => ({ ...d, open: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm focus:border-sky-400 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <p className="mb-1 text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+                        {pick('Close', '結束')}
+                      </p>
+                      <input
+                        type="time"
+                        value={draft.close}
+                        onChange={(e) => setDraft((d) => ({ ...d, close: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm focus:border-sky-400 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Save button */}
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="w-full rounded-lg bg-sky-600 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50 transition-colors"
+                >
+                  {saving ? pick('Saving…', '儲存中…') : pick('Save', '儲存')}
+                </button>
               </div>
             )}
           </div>

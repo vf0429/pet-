@@ -5,7 +5,9 @@
     "dev": "next dev -p 3500",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "dev:lan": "next dev -H 0.0.0.0 -p 3500",
+    "start:lan": "next start -H 0.0.0.0 -p 3500"
   },
   "dependencies": {
     "next": "^15.0.0",

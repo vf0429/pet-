@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"net/http"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/models"
 	"strings"
 	"time"
 
@@ -53,11 +53,27 @@ func AppKeyAuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		routingConfig, routingErr := loadTenantRoutingConfig(db, appKey.Project.TenantID)
+		switch routingErr {
+		case "unavailable":
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": 50301, "message": "tenant routing is not configured", "data": nil})
+			c.Abort()
+			return
+		case "invalid":
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": 50302, "message": "tenant routing is invalid", "data": nil})
+			c.Abort()
+			return
+		}
+
 		now := time.Now()
 		_ = db.Model(&models.MerchantAppKey{}).Where("id = ?", appKey.ID).Update("last_used_at", now).Error
 
 		c.Set("app_project_id", appKey.Project.ID)
 		c.Set("app_tenant_id", appKey.Project.TenantID)
+		c.Set("app_subscription_tier", string(routingConfig.SubscriptionTier))
+		c.Set("app_tenancy_mode", string(routingConfig.TenancyMode))
+		c.Set("app_schema_name", routingConfig.SchemaName)
+		c.Set("app_database_key", routingConfig.DatabaseKey)
 		c.Next()
 	}
 }

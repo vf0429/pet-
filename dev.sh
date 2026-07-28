@@ -4,7 +4,7 @@
 
 trap 'kill 0; exit' INT TERM
 
-echo "🚀 Starting PetWell Merchant dev servers..."
+echo "🚀 Starting Pawrd Merchant dev servers..."
 echo ""
 
 # 清理已占用端口的残留进程，避免重复启动时 bind 失败

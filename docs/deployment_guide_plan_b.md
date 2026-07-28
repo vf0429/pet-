@@ -1,968 +1,563 @@
-# PetWell Merchant Portal — 部署指南（方案 B）
+# PetWell Merchant Portal — 部署执行手册（Plan B / 2026-04-19）
 
-> **架构**: Supabase（PostgreSQL + Realtime）+ Fly.io（Go 后端）+ Vercel（Next.js 前端）
+> **用途**：这是按当前仓库状态裁剪后的可执行版本，用于把 `apps/petwell-merchant` 部署成一个可用于三端联调的 **R2 Merchant 服务**。
 >
-> **目标月费**: $5~30 USD
+> **当前目标**：先完成 **Horizon 1 / integration-ready**，即把共享 R2 服务部署出来，打通 `R3 -> R1 -> R2 -> R1 -> R3` 的真实线上链路；**不是**一次性完成三档租户隔离的正式商用版。
 >
-> **预计部署时间**: 2~3 小时（首次）
+> **推荐拓扑**：Supabase（PostgreSQL） + Fly.io（Go backend） + Vercel（Next.js frontend）
 >
-> **最后更新**: 2026-03-29
+> **最后更新**：2026-04-19
 
 ---
 
-## 目录
+## 0. 先看结论
 
-1. [架构总览](#1-架构总览)
-2. [准备工作](#2-准备工作)
-3. [第一步：Supabase 数据库](#3-第一步supabase-数据库)
-4. [第二步：代码改动（部署前必须完成）](#4-第二步代码改动部署前必须完成)
-5. [第三步：Fly.io 部署后端](#5-第三步flyio-部署后端)
-6. [第四步：Vercel 部署前端](#6-第四步vercel-部署前端)
-7. [第五步：域名与 HTTPS](#7-第五步域名与-https)
-8. [第六步：Supabase Realtime 集成](#8-第六步supabase-realtime-集成)
-9. [环境变量汇总](#9-环境变量汇总)
-10. [测试清单](#10-测试清单)
-11. [日常运维](#11-日常运维)
-12. [故障排查](#12-故障排查)
-13. [成本明细](#13-成本明细)
-14. [扩容路径](#14-扩容路径)
+### 当前仓库里已经完成的内容
+以下部署前代码准备 **已经落地**，不要重复做：
+
+- `backend/cmd/server/main.go`
+  - 已支持 `PORT`
+  - 已启用 `CORSMiddleware()`
+- `backend/middleware/cors.go`
+- `backend/Dockerfile`
+- `backend/fly.toml`
+- `frontend/next.config.js`
+  - 已支持 `BACKEND_URL`
+
+### 这份手册真正要你做的事
+1. 选择并确认部署分支
+2. 创建 Supabase 项目
+3. 用 Fly.io 部署 `backend/`
+4. 用 Vercel 部署 `frontend/`
+5. 配置域名 / HTTPS
+6. **把 R1 指向新部署的 R2**
+7. 跑一次真实链路验证
+
+### 本轮不是硬前置的内容
+以下内容 **不是当前三端联调的 blocker**，可以后补：
+
+- Supabase Realtime 前端订阅接入
+- 商用级三档租户隔离完整落地
+- 所有生产数据初始化自动化
+
+### 一页版执行 Checklist
+
+> 下面这份是最短可执行版。  
+> 如果你只想照着做，不想来回看全文，就直接按这个顺序打勾。
+
+#### A. 部署前
+- [ ] 我当前在 `phase-6` 分支
+- [ ] `git status --short` 没有会误带进部署的临时改动
+- [ ] backend 已跑过：
+  - [ ] `go test ./...`
+  - [ ] `go build ./...`
+- [ ] frontend 已跑过：
+  - [ ] `npm install`
+  - [ ] `npm run build`
+
+#### B. Supabase
+- [ ] 已创建新加坡区域的 Supabase 项目
+- [ ] 已保存数据库密码
+- [ ] 已拿到 `DATABASE_URL`
+
+#### C. Fly.io backend
+- [ ] 已登录 Fly.io
+- [ ] 已创建或确认应用 `petwell-merchant-api`
+- [ ] 已设置 `DATABASE_URL`
+- [ ] 已设置 `ALLOWED_ORIGINS`
+- [ ] 如果这轮先追求联调速度：已设置 `ALLOW_DEMO_SEED=true`
+- [ ] 已执行 `fly deploy`
+- [ ] `fly status` 正常
+- [ ] `fly logs` 没有启动致命错误
+- [ ] `https://petwell-merchant-api.fly.dev/v1/merchant/auth/login` 能返回路由存在的响应（如 405）
+- [ ] Supabase 里已经出现核心表
+
+#### D. Vercel frontend
+- [ ] 已导入 `frontend` 子目录
+- [ ] 已设置 `BACKEND_URL`
+- [ ] 已完成 Deploy
+- [ ] 能打开 `/login`
+
+#### E. 域名
+- [ ] 已绑定 `merchant.petwell.com`
+- [ ] 已绑定 `api.petwell.com`
+- [ ] 域名切换后已同步更新：
+  - [ ] Fly 的 `ALLOWED_ORIGINS`
+  - [ ] Vercel 的 `BACKEND_URL`
+
+#### F. R1 对接
+- [ ] 已在 R1 配置 `MERCHANT_FACADE_BASE_URL`
+- [ ] 已在 R1 配置 `MERCHANT_FACADE_APP_KEY`
+- [ ] 如需要，已配置 `BOOKING_SYNC_SHARED_SECRET`
+
+#### G. 真链路验证
+- [ ] create booking 成功
+- [ ] list booking 成功
+- [ ] detail booking 成功
+- [ ] cancel booking 成功
+- [ ] 至少完成一次 `R3 -> R1 -> R2 -> R1 -> R3` 闭环验证
+
+#### H. 收尾
+- [ ] 如果现在还是 demo seed / demo key，已记录后续替换计划
+- [ ] 已确认这次结果属于 **integration-ready**，不是最终商用完成态
 
 ---
 
-## 1. 架构总览
+## 1. 适用范围与边界
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        互 联 网                                   │
-│                                                                   │
-│  医生电脑 ───┐    Owner 电脑 ───┐    前台电脑 ───┐                │
-│              ▼                  ▼                ▼                │
-│         ┌─────────────────────────────────────────┐              │
-│         │          Vercel (Next.js 前端)           │              │
-│         │   https://merchant.petwell.com           │              │
-│         │   全球 CDN, 自动 HTTPS, 零运维            │              │
-│         └────────────────┬────────────────────────┘              │
-│                          │  API 请求（Next.js Rewrites 代理）      │
-│                          ▼                                        │
-│         ┌─────────────────────────────────────────┐              │
-│         │         Fly.io (Go 后端)                 │              │
-│         │   petwell-api.fly.dev (新加坡节点)        │              │
-│         │   自动 HTTPS, 容器化, 自动重启             │              │
-│         └────────────────┬────────────────────────┘              │
-│                          │  DATABASE_URL                          │
-│                          ▼                                        │
-│         ┌─────────────────────────────────────────┐              │
-│         │       Supabase (新加坡 Region)            │              │
-│         │                                          │              │
-│         │   PostgreSQL ─── 主数据库                  │              │
-│         │   Realtime ───── 多角色实时同步            │              │
-│         │   Storage ────── 病例附件/X光片            │              │
-│         │   自动备份 ────── 每日 Point-in-Time       │              │
-│         └──────────────────────────────────────────┘              │
-└──────────────────────────────────────────────────────────────────┘
-```
+### 本文档适用于
+- 当前仓库：`/Users/vfzzz/Desktop/PetWell_Project/apps/petwell-merchant`
+- 当前主执行分支：`phase-6`
+- 当前联调目标：**共享 R2 服务上线**
 
-### 数据流向
-
-```
-前台点击"签到"
-    │
-    ▼
-Vercel (Next.js) ──POST──▶ Fly.io (Go API)
-                                │
-                                ├──▶ Supabase PostgreSQL  (写入 status = checked_in)
-                                │
-                                └──▶ Supabase Realtime     (自动广播变更)
-                                          │
-                                          ├──▶ 医生浏览器  (实时收到更新, 无需刷新)
-                                          └──▶ Owner 浏览器 (实时收到更新, 无需刷新)
-```
+### 本文档不负责
+- R1 Zeabur 实际发布操作细节
+- 三档隔离（shared table / per-schema / per-db）正式商用编排
+- Realtime 页面级功能全面接入
 
 ---
 
-## 2. 准备工作
+## 2. 部署前检查
 
-### 2.1 需要注册的账号
-
-| 平台 | 地址 | 用途 | 是否需要信用卡 |
-|------|------|------|:------------:|
-| **Supabase** | https://supabase.com | 数据库 + 实时同步 | 免费层不需要 |
-| **Fly.io** | https://fly.io | Go 后端托管 | 需要（验证用，有免费额度） |
-| **Vercel** | https://vercel.com | Next.js 前端托管 | 免费层不需要 |
-| **GitHub** | https://github.com | 代码仓库（三个平台都从这里自动部署） | 不需要 |
-
-### 2.2 本地工具
+### 2.1 确认分支与代码状态
 
 ```bash
-# 确认已安装
-go version          # 需要 1.22+
-node --version      # 需要 18+
-npm --version       # 需要 9+
-git --version       # 任意版本
+cd /Users/vfzzz/Desktop/PetWell_Project/apps/petwell-merchant
 
-# 需要新装的 CLI
-# Fly.io CLI
-brew install flyctl
-fly auth login
+git branch --show-current
+# 期望看到：phase-6
 
-# Vercel CLI (可选, 也可以在网页操作)
-npm i -g vercel
-
-# Supabase CLI (可选, 也可以在网页操作)
-brew install supabase/tap/supabase
+git status --short
+# 确认没有会误带进部署的临时改动
 ```
 
-### 2.3 代码仓库
-
-确保项目已推送到 GitHub：
+### 2.2 本地最小验证
 
 ```bash
-cd /Users/vfzzz/Desktop/petwell-merchant
-git remote -v   # 确认有 GitHub remote
-git push origin main
+# backend
+cd /Users/vfzzz/Desktop/PetWell_Project/apps/petwell-merchant/backend
+go test ./...
+go build ./...
+
+# frontend
+cd /Users/vfzzz/Desktop/PetWell_Project/apps/petwell-merchant/frontend
+npm install
+npm run build
 ```
+
+> 说明：`next lint` 当前不是硬前置，因为该项目可能出现交互式初始化提示。
+
+### 2.3 需要的账号
+- Supabase
+- Fly.io
+- Vercel
+- GitHub
+
+### 2.4 建议的部署结果
+- 前端：`https://merchant.petwell.com`
+- 后端：`https://api.petwell.com`
+- Fly 默认后端域名（过渡期可用）：`https://petwell-merchant-api.fly.dev`
 
 ---
 
-## 3. 第一步：Supabase 数据库
+## 3. 第一步：创建 Supabase 项目
 
 ### 3.1 创建项目
-
-1. 登录 https://app.supabase.com
+1. 打开 <https://app.supabase.com>
 2. 点击 **New Project**
 3. 填写：
-   - **Name**: `petwell-merchant`
-   - **Database Password**: 记下来，后面要用（建议用密码管理器生成强密码）
-   - **Region**: `Southeast Asia (Singapore)` ← **必须选新加坡，离香港最近**
-   - **Plan**: Free（后续可升级）
-4. 等待项目初始化（约 2 分钟）
+   - **Project name**: `petwell-merchant`
+   - **Region**: `Southeast Asia (Singapore)`
+   - **Database password**: 用密码管理器生成并保存
+4. 等待项目初始化完成
 
-### 3.2 获取连接信息
+### 3.2 记录数据库连接串
+在 **Project Settings -> Database** 找到连接信息，拼成：
 
-项目创建完成后，进入 **Project Settings → Database**：
-
-```
-# 你会看到类似这样的连接信息：
-Host:     db.xxxxxxxxxxxx.supabase.co
-Port:     5432
-Database: postgres
-User:     postgres
-Password: [你刚才设的密码]
+```text
+postgresql://postgres:<PASSWORD>@db.xxxxx.supabase.co:5432/postgres
 ```
 
-拼接成 `DATABASE_URL`：
+后面会作为 Fly secret 的 `DATABASE_URL`。
 
-```
-postgresql://postgres:[你的密码]@db.xxxxxxxxxxxx.supabase.co:5432/postgres
-```
-
-> **安全提示**: 这个 URL 包含数据库密码，绝对不要提交到 Git。只通过环境变量传递。
-
-### 3.3 确认连接
-
-在本地验证能否连通（可选）：
-
-```bash
-# 临时测试
-DATABASE_URL="postgresql://postgres:xxx@db.xxx.supabase.co:5432/postgres" \
-  cd backend && go run cmd/server/main.go
-
-# 日志应该显示：
-# Using PostgreSQL database
-# Server starting on :8080
-```
-
-看到 `Using PostgreSQL database` 即表示连接成功。此时 GORM 的 `AutoMigrate` 会自动建表。
-
-### 3.4 开启 Realtime
-
-1. 进入 Supabase Dashboard → **Database → Replication**
-2. 在 `supabase_realtime` 这一行点击编辑
-3. 勾选以下表：
-   - `clinic_appointments`
-   - `clinic_visits`
-4. 保存
-
-这样当这些表的数据变化时，Supabase 会自动向所有订阅的前端推送变更。
-
-### 3.5 获取 Realtime 凭证
-
-进入 **Project Settings → API**，记录：
-
-```
-Project URL:    https://xxxxxxxxxxxx.supabase.co
-anon (public) key: eyJhbGciOiJIUzI1NiIs...（很长的字符串）
-```
-
-这两个值后续前端要用，用于订阅 Realtime 变更。
+### 3.3 当前建议
+**本轮先把 Supabase 当作 PostgreSQL 使用即可。**
+Realtime、Storage、Auth 都不是这次三端联调闭环的硬前置。
 
 ---
 
-## 4. 第二步：代码改动（部署前必须完成）
+## 4. 第二步：决定“首轮数据初始化”方式
 
-### 4.1 后端：端口从环境变量读取
+当前后端在 **hosted database** 上默认 **不会自动 seed demo 数据**。
 
-**文件**: `backend/cmd/server/main.go`
+代码逻辑是：
+- `DATABASE_URL` 为空：本地 SQLite，会自动 seed
+- `DATABASE_URL` 有值：托管 PostgreSQL，默认 **不 seed**
+- 只有设置 `ALLOW_DEMO_SEED=true` 时，托管 PostgreSQL 才会 seed
 
-找到：
-```go
-log.Println("Server starting on :8080")
-jobs.StartSyncConsumer(db, 30*time.Second)
-if err := r.Run(":8080"); err != nil {
-    log.Fatal("Failed to start server:", err)
-}
+### 4.1 你有两个选择
+
+#### 方案 A：联调最快路径（推荐用于当前 integration-ready）
+首次部署时临时设置：
+
+```text
+ALLOW_DEMO_SEED=true
 ```
 
-改为：
-```go
-port := os.Getenv("PORT")
-if port == "" {
-    port = "8080"
-}
-log.Printf("Server starting on :%s", port)
-jobs.StartSyncConsumer(db, 30*time.Second)
-if err := r.Run(":" + port); err != nil {
-    log.Fatal("Failed to start server:", err)
-}
-```
-
-### 4.2 后端：添加 CORS 中间件
-
-**新建文件**: `backend/middleware/cors.go`
-
-```go
-package middleware
-
-import (
-	"net/http"
-	"os"
-	"strings"
-
-	"github.com/gin-gonic/gin"
-)
-
-// CORSMiddleware handles Cross-Origin Resource Sharing for production deployments
-// where frontend and backend are on different domains.
-func CORSMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		origin := c.GetHeader("Origin")
-
-		// In production, validate against allowed origins
-		allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
-		if allowedOrigins == "" {
-			// Development fallback
-			allowedOrigins = "http://localhost:3500,http://localhost:3000"
-		}
-
-		allowed := false
-		for _, o := range strings.Split(allowedOrigins, ",") {
-			if strings.TrimSpace(o) == origin {
-				allowed = true
-				break
-			}
-		}
-
-		if allowed {
-			c.Header("Access-Control-Allow-Origin", origin)
-			c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
-			c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, X-Session-ID, X-Business-Type, X-Merchant-App-Key, Idempotency-Key")
-			c.Header("Access-Control-Allow-Credentials", "true")
-			c.Header("Access-Control-Max-Age", "86400")
-		}
-
-		if c.Request.Method == http.MethodOptions {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-
-		c.Next()
-	}
-}
-```
-
-**在 `main.go` 中启用**：
-
-```go
-r := gin.Default()
-r.Use(middleware.CORSMiddleware())  // ← 加在所有路由之前
-```
-
-### 4.3 后端：创建 Dockerfile
-
-**新建文件**: `backend/Dockerfile`
-
-```dockerfile
-# ── Build stage ──
-FROM golang:1.22-alpine AS builder
-
-RUN apk add --no-cache gcc musl-dev
-
-WORKDIR /app
-
-# Cache dependencies
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Build binary
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/server/main.go
-
-# ── Run stage ──
-FROM alpine:3.19
-
-RUN apk add --no-cache ca-certificates tzdata
-
-WORKDIR /app
-COPY --from=builder /app/server .
-
-# Fly.io will set PORT via environment variable
-ENV PORT=8080
-EXPOSE 8080
-
-CMD ["./server"]
-```
-
-### 4.4 后端：创建 fly.toml
-
-**新建文件**: `backend/fly.toml`
-
-```toml
-app = "petwell-merchant-api"
-primary_region = "sin"  # Singapore
-
-[build]
-  dockerfile = "Dockerfile"
-
-[env]
-  GIN_MODE = "release"
-
-[http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = false   # 诊所需要全天可用, 不要自动停机
-  auto_start_machines = true
-  min_machines_running = 1
-
-  [http_service.concurrency]
-    type = "connections"
-    hard_limit = 100
-    soft_limit = 80
-
-[[vm]]
-  size = "shared-cpu-1x"
-  memory = "256mb"
-```
-
-### 4.5 前端：API 代理地址改成环境变量
-
-**文件**: `frontend/next.config.js`
-
-```javascript
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  async rewrites() {
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8080'
-    return [
-      {
-        source: '/api/v1/merchant/:path*',
-        destination: `${backendUrl}/v1/merchant/:path*`,
-      },
-      {
-        source: '/api/app/v1/:path*',
-        destination: `${backendUrl}/app/v1/:path*`,
-      },
-    ]
-  },
-}
-
-module.exports = nextConfig
-```
-
-### 4.6 前端：安装 Supabase 客户端
-
-```bash
-cd frontend
-npm install @supabase/supabase-js
-```
-
-### 4.7 前端：创建 Supabase 实时同步客户端
-
-**新建文件**: `frontend/lib/supabase.ts`
-
-```typescript
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-
-// 这个客户端只用于 Realtime 订阅，不用于数据读写
-// 所有数据读写仍然走 Go 后端 API
-export const supabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      realtime: {
-        params: {
-          eventsPerSecond: 10,
-        },
-      },
-    })
-  : null
-```
-
-**新建文件**: `frontend/hooks/useRealtimeSync.ts`
-
-```typescript
-'use client'
-
-import { useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
-
-/**
- * 订阅 Supabase Realtime 数据库变更，自动触发回调刷新数据。
- *
- * 使用方式：
- *   useRealtimeSync('clinic_appointments', () => { fetchAppointments() })
- *   useRealtimeSync('clinic_visits', () => { fetchVisit(visitId) })
- */
-export function useRealtimeSync(
-  table: string,
-  onDataChange: () => void,
-  enabled: boolean = true
-) {
-  useEffect(() => {
-    if (!supabase || !enabled) return
-
-    const channel = supabase
-      .channel(`realtime-${table}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',        // INSERT, UPDATE, DELETE 都监听
-          schema: 'public',
-          table: table,
-        },
-        (_payload) => {
-          // 数据库有变化 → 重新拉取数据
-          onDataChange()
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [table, onDataChange, enabled])
-}
-```
-
-### 4.8 前端：在预约列表页集成实时同步
-
-**文件**: `frontend/app/merchant/clinic/appointments/page.tsx`
-
-在组件内加上一行：
-
-```typescript
-import { useRealtimeSync } from '@/hooks/useRealtimeSync'
-
-export default function AppointmentsPage() {
-  // ... 现有代码 ...
-
-  const { fetchAppointments } = useClinicAppointmentsStore()
-
-  // 当其他角色修改了预约状态，自动刷新列表
-  useRealtimeSync('clinic_appointments', fetchAppointments)
-
-  // ... 其他现有代码 ...
-}
-```
-
-### 4.9 创建环境变量模板
-
-**新建文件**: `.env.example`
-
-```bash
-# ──────────────────────────────────────
-# PetWell Merchant Portal — 环境变量模板
-# ──────────────────────────────────────
-
-# ── 后端 (Go / Fly.io) ──
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@db.xxxxx.supabase.co:5432/postgres
-PORT=8080
-GIN_MODE=release
-ALLOWED_ORIGINS=https://merchant.petwell.com
-
-# ── 前端 (Next.js / Vercel) ──
-BACKEND_URL=https://petwell-merchant-api.fly.dev
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
-```
-
-### 4.10 更新 .gitignore
-
-确保敏感文件不会被提交：
-
-```gitignore
-# Environment variables (NEVER commit)
-.env
-.env.local
-.env.production
-
-# SQLite dev database
-backend/petwell.db
-
-# Build artifacts
-frontend/.next/
-backend/server
-```
+作用：
+- 自动建表
+- 自动写入 Happy Paws HK 相关 demo 数据
+- 能最快把 R2 跑起来做三端联调
+
+风险：
+- 会带入 demo key / demo tenant 思路
+- **不适合作为正式商用长期状态**
+
+#### 方案 B：正式初始化路径（更干净，但更慢）
+- 不开 `ALLOW_DEMO_SEED`
+- 由你手动准备 tenant / project / app key / clinic binding / schedule 数据
+
+如果你当前目标是：
+> 先让 merchant 端上线并配合三端联调
+
+**建议先走方案 A**，等链路闭环后再清理成正式 bootstrap 数据。
 
 ---
 
 ## 5. 第三步：Fly.io 部署后端
 
-### 5.1 初始化 Fly.io 应用
+### 5.1 登录 Fly
 
 ```bash
-cd backend
-
-# 登录 (首次)
+brew install flyctl
 fly auth login
+```
 
-# 创建应用 (fly.toml 已准备好)
+### 5.2 创建应用
+
+```bash
+cd /Users/vfzzz/Desktop/PetWell_Project/apps/petwell-merchant/backend
 fly apps create petwell-merchant-api --org personal
-
-# 选择新加坡区域
 fly regions set sin
 ```
 
-### 5.2 设置环境变量（Secrets）
+> 如果 app 已存在，就跳过 `fly apps create`。
+
+### 5.3 设置 Secrets
+
+#### 最小必填
 
 ```bash
-# 数据库连接（从 Supabase 获取的 DATABASE_URL）
-fly secrets set DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@db.xxxxx.supabase.co:5432/postgres"
-
-# 前端域名（CORS 白名单）
+fly secrets set DATABASE_URL="postgresql://postgres:<PASSWORD>@db.xxxxx.supabase.co:5432/postgres"
 fly secrets set ALLOWED_ORIGINS="https://merchant.petwell.com,https://petwell-merchant.vercel.app"
 ```
 
-> **重要**：Secrets 通过 Fly.io 加密存储，不会暴露在日志或代码中。
-
-### 5.3 部署
+#### 如果走“联调最快路径”
 
 ```bash
-cd backend
+fly secrets set ALLOW_DEMO_SEED="true"
+```
+
+#### 如果你已经准备好正式 tenant / app key 数据
+则不要设置 `ALLOW_DEMO_SEED`，或者显式关闭：
+
+```bash
+fly secrets set ALLOW_DEMO_SEED="false"
+```
+
+### 5.4 部署后端
+
+```bash
+cd /Users/vfzzz/Desktop/PetWell_Project/apps/petwell-merchant/backend
 fly deploy
 ```
 
-首次部署大约需要 3~5 分钟。完成后：
+### 5.5 部署后检查
 
 ```bash
-# 确认运行状态
 fly status
-
-# 查看日志
 fly logs
-
-# 打开浏览器验证
-# 访问 https://petwell-merchant-api.fly.dev/v1/merchant/auth/login
-# 应该返回 405 (Method Not Allowed) — 说明后端已在运行
 ```
 
-### 5.4 确认数据库迁移
+### 5.6 后端健康确认
+直接访问或 curl：
 
-首次启动时，GORM 的 `AutoMigrate` 会自动在 Supabase PostgreSQL 中建表。
+```bash
+curl -i https://petwell-merchant-api.fly.dev/v1/merchant/auth/login
+```
 
-验证方式：
-1. 回到 Supabase Dashboard → **Table Editor**
-2. 应该能看到所有表（`tenants`, `merchant_users`, `clinic_appointments`, 等）
-3. 同时会有种子数据（测试账号、预约等）
+预期：
+- 返回 `405 Method Not Allowed` 或类似“路径存在但方法不对”的响应
+- 这说明服务已起来，路由也在
+
+### 5.7 确认 Supabase 已建表
+打开 Supabase Dashboard -> Table Editor，确认至少已经出现这些表：
+
+- `tenants`
+- `merchant_projects`
+- `merchant_app_keys`
+- `clinic_integration_bindings`
+- `clinic_appointments`
+- `app_sync_queues`
+
+如果一个都没有：
+- 先看 `fly logs`
+- 再看 `DATABASE_URL` 是否配置错误
 
 ---
 
 ## 6. 第四步：Vercel 部署前端
 
-### 6.1 连接 GitHub 仓库
-
-1. 登录 https://vercel.com
-2. 点击 **Add New Project**
-3. 从 GitHub 导入 `petwell-merchant` 仓库
-4. 配置：
-   - **Framework Preset**: Next.js（自动识别）
-   - **Root Directory**: `frontend`  ← **重要！项目前端在子目录**
-   - **Build Command**: `npm run build`（默认）
-   - **Output Directory**: `.next`（默认）
+### 6.1 导入项目
+1. 打开 <https://vercel.com>
+2. **Add New Project**
+3. 导入当前仓库
+4. 关键配置：
+   - **Framework Preset**: Next.js
+   - **Root Directory**: `frontend`
 
 ### 6.2 设置环境变量
+至少配置：
 
-在 Vercel 项目的 **Settings → Environment Variables** 中添加：
+| Key | Value |
+|---|---|
+| `BACKEND_URL` | `https://petwell-merchant-api.fly.dev` |
 
-| Key | Value | Environment |
-|-----|-------|-------------|
-| `BACKEND_URL` | `https://petwell-merchant-api.fly.dev` | Production |
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://xxxxx.supabase.co` | Production |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbGciOiJIUzI1NiIs...` | Production |
-
-> **注意**: `NEXT_PUBLIC_` 前缀的变量会暴露给浏览器，这是正常的。
-> Supabase anon key 本身就是设计为公开的，安全性通过 Row Level Security (RLS) 保证。
+> 如果你已经绑定了自定义后端域名，则直接用 `https://api.petwell.com`。
 
 ### 6.3 部署
+点击 **Deploy**。
 
-点击 **Deploy**。Vercel 会自动：
+### 6.4 前端验证
+部署完成后访问：
 
-1. 安装依赖（`npm install`）
-2. 构建项目（`npm run build`）
-3. 部署到全球 CDN
-4. 自动分配 HTTPS 域名：`petwell-merchant.vercel.app`
+```text
+https://petwell-merchant.vercel.app/login
+```
 
-### 6.4 验证
+如果你之后绑定了自定义域名，再改用：
 
-访问 `https://petwell-merchant.vercel.app/login`，应该能看到登录页面。
-
-用测试账号登录：
-- Email: `owner@happypaws.com`
-- Password: `Test123!`
+```text
+https://merchant.petwell.com/login
+```
 
 ---
 
-## 7. 第五步：域名与 HTTPS
+## 7. 第五步：绑定域名与 HTTPS
 
-### 7.1 自定义域名（可选，建议）
+### 7.1 前端域名
+在 Vercel 里绑定：
 
-如果你有自己的域名（比如 `petwell.com`），可以配置：
+```text
+merchant.petwell.com
+```
 
-**前端域名**：`merchant.petwell.com`
+DNS：
 
-1. 在 Vercel → Settings → Domains → 添加 `merchant.petwell.com`
-2. 在你的域名 DNS 服务商添加 CNAME 记录：
-   ```
-   merchant.petwell.com → cname.vercel-dns.com
-   ```
-3. Vercel 自动签发 SSL 证书
+```text
+merchant.petwell.com -> cname.vercel-dns.com
+```
 
-**后端域名**：`api.petwell.com`
+### 7.2 后端域名
+在 Fly.io 里绑定：
 
-1. 在 Fly.io：
-   ```bash
-   fly certs create api.petwell.com
-   ```
-2. 在 DNS 添加 CNAME：
-   ```
-   api.petwell.com → petwell-merchant-api.fly.dev
-   ```
-3. Fly.io 自动签发 SSL
+```bash
+fly certs create api.petwell.com
+```
 
-### 7.2 配置自定义域名后更新环境变量
+DNS：
 
-**Fly.io Secrets**:
+```text
+api.petwell.com -> petwell-merchant-api.fly.dev
+```
+
+### 7.3 域名切换后同步更新
+
+#### Fly secret
+
 ```bash
 fly secrets set ALLOWED_ORIGINS="https://merchant.petwell.com"
 ```
 
-**Vercel Environment Variables**:
+#### Vercel env
+
+```text
+BACKEND_URL=https://api.petwell.com
 ```
-BACKEND_URL = https://api.petwell.com
+
+重新部署前端一次，确保 rewrites 指向正式后端域名。
+
+---
+
+## 8. 第六步：补 R2 的 bootstrap 数据
+
+这一部分决定 R1 能不能真正打到 R2。
+
+### 8.1 当前三端联调至少需要的记录
+你最终至少需要有以下实体：
+
+1. `tenant`
+2. `merchant_project`
+3. `merchant_app_key`
+4. `clinic_integration_binding`
+5. 足够的 clinic / schedule / booking 测试数据
+
+### 8.2 当前联调约定（已知）
+当前联调文档与测试里已经出现过这些值：
+
+- `project_code = happypaws-hk`
+- `clinic_integration_id = clinic_happypaws_hk`
+- demo app key：`pk_app_test_secret_key_dev`
+
+### 8.3 强约束
+- **如果只是当前集成验证**：可以短期用 demo seed 快速起服务
+- **如果进入正式外部可用环境**：不要长期保留 demo key；必须换成新的 production app key
+
+---
+
+## 9. 第七步：把 R1 接到新部署的 R2
+
+> 这是当前旧版部署文档最缺的一步，但对三端联调是关键步骤。
+
+R2 部署完之后，还必须配置 R1（`Petwell_Backend`）的环境变量。
+
+### 9.1 R1 必填 env
+
+```text
+MERCHANT_FACADE_BASE_URL=https://api.petwell.com
+MERCHANT_FACADE_APP_KEY=<你的 R2 app key>
+```
+
+### 9.2 可选 env
+
+```text
+BOOKING_SYNC_SHARED_SECRET=<shared secret>
+```
+
+### 9.3 如果暂时还没上自定义域名
+那就先用 Fly 默认域名：
+
+```text
+MERCHANT_FACADE_BASE_URL=https://petwell-merchant-api.fly.dev
+```
+
+### 9.4 R1 侧验证目标
+部署后，R1 不应再表现成“merchant 未配置”。
+
+至少要做到：
+- `POST /api/bookings` 不再因为 merchant base URL / app key 缺失而失败
+- R1 可以真实请求到 R2 app-facing facade
+
+---
+
+## 10. 第八步：跑真实链路验证
+
+### 10.1 最小通过标准
+按顺序验证：
+
+1. **R2 backend 在线**
+2. **R2 frontend 在线**
+3. **R1 能访问 R2 facade**
+4. **create booking 成功**
+5. **list / detail 成功**
+6. **cancel 成功**
+
+### 10.2 你真正关心的闭环
+目标不是“merchant 页面能打开”而已，而是：
+
+```text
+R3 App -> R1 -> R2 -> R1 -> R3
+```
+
+只要这条链里任意一段没通，就不能算三端联调完成。
+
+### 10.3 推荐验证顺序
+
+#### A. 先验证 R2 自己活着
+- Fly logs 正常
+- `/v1/merchant/auth/login` 路由存在
+
+#### B. 再验证 R1 -> R2
+- 给 R1 配好 `MERCHANT_FACADE_BASE_URL`
+- 给 R1 配好 `MERCHANT_FACADE_APP_KEY`
+- 从 R1 跑 booking create/read/cancel
+
+#### C. 最后验证 App 侧
+- App 发 booking
+- R1 落镜像/回读
+- 状态能正常返回给 R3
+
+---
+
+## 11. Realtime：当前处理原则
+
+Supabase Realtime 在这次部署里：
+
+- **不是必须先做**
+- 可以在 R2 基础部署完成后再补
+
+只有当你明确要做“merchant portal 多角色实时刷新”时，再继续接：
+
+- `@supabase/supabase-js`
+- `useRealtimeSync`
+- Supabase publication / replication 配置
+
+当前这部分不要阻塞三端联调主线。
+
+---
+
+## 12. 推荐执行顺序（直接照着做）
+
+```text
+1. 确认当前部署分支是 phase-6
+2. 本地跑 go test ./... / go build ./... / npm run build
+3. 新建 Supabase 新加坡项目
+4. 记录 DATABASE_URL
+5. Fly 上设置 DATABASE_URL + ALLOWED_ORIGINS
+6. 当前联调若求快：临时加 ALLOW_DEMO_SEED=true
+7. fly deploy
+8. 确认 Fly 服务在线 + Supabase 已建表
+9. Vercel 导入 frontend 子目录，设置 BACKEND_URL
+10. 部署前端
+11. 绑定 merchant.petwell.com / api.petwell.com
+12. 更新 Fly 的 ALLOWED_ORIGINS 与 Vercel 的 BACKEND_URL
+13. 去 R1 配 MERCHANT_FACADE_BASE_URL / MERCHANT_FACADE_APP_KEY
+14. 跑 create / list / detail / cancel 真链路验证
+15. 验证通过后，再决定是否去掉 demo seed、换正式 app key、补 Realtime
 ```
 
 ---
 
-## 8. 第六步：Supabase Realtime 集成
+## 13. 完成定义
 
-### 8.1 工作原理
+满足以下条件，才算这轮部署完成：
 
-```
-Go 后端写入 PostgreSQL
-        │
-        ▼
-Supabase 检测到 clinic_appointments 表的 UPDATE
-        │
-        ▼
-Supabase Realtime 通过 WebSocket 推送到所有订阅的浏览器
-        │
-        ▼
-前端 useRealtimeSync hook 收到通知 → 自动调用 fetchAppointments()
-        │
-        ▼
-医生/前台/Owner 的页面自动刷新，无需手动操作
-```
-
-### 8.2 Supabase 端配置
-
-需要确保 Realtime 能读取你的表数据。进入 Supabase Dashboard：
-
-1. **Database → Replication**：确认 `clinic_appointments` 和 `clinic_visits` 已开启
-2. **Authentication → Policies**：因为我们只用 Realtime 订阅（不通过 Supabase 读写数据），需要添加一个允许 anon 用户监听的策略。进入 **SQL Editor**，执行：
-
-```sql
--- 允许 Realtime 订阅（只监听变更通知，不暴露数据内容）
--- 实际的数据读取仍然走 Go 后端 API（有完整的角色权限控制）
-ALTER PUBLICATION supabase_realtime ADD TABLE clinic_appointments;
-ALTER PUBLICATION supabase_realtime ADD TABLE clinic_visits;
-```
-
-### 8.3 前端已完成的集成
-
-在第 4.7 ~ 4.8 步中已经创建了 `useRealtimeSync` hook。只需要在需要实时更新的页面调用即可。
-
-**目前建议集成的页面**：
-
-| 页面 | 监听的表 | 效果 |
-|------|---------|------|
-| 预约列表 | `clinic_appointments` | 前台签到 → 医生自动看到 |
-| Visit 详情 | `clinic_visits` | 医生写病例 → Owner 自动看到 |
-| Clinic Dashboard | `clinic_appointments` | 统计数据实时更新 |
+- [ ] R2 backend 已部署并可访问
+- [ ] R2 frontend 已部署并可访问
+- [ ] Supabase 已连通且表已建立
+- [ ] R1 已成功指向新 R2
+- [ ] 真实 booking create 成功
+- [ ] 真实 booking list/detail 成功
+- [ ] 真实 booking cancel 成功
+- [ ] 至少完成一次 `R3 -> R1 -> R2 -> R1 -> R3` 闭环验证
 
 ---
 
-## 9. 环境变量汇总
+## 14. 当前已知风险
 
-### Fly.io (Go 后端) — 通过 `fly secrets set`
-
-| 变量 | 值 | 必填 |
-|------|---|:---:|
-| `DATABASE_URL` | `postgresql://postgres:xxx@db.xxx.supabase.co:5432/postgres` | 是 |
-| `PORT` | `8080`（Fly.io 自动设置） | 自动 |
-| `GIN_MODE` | `release`（fly.toml 已设置） | 自动 |
-| `ALLOWED_ORIGINS` | `https://merchant.petwell.com` | 是 |
-
-### Vercel (Next.js 前端) — 通过 Vercel Dashboard
-
-| 变量 | 值 | 必填 |
-|------|---|:---:|
-| `BACKEND_URL` | `https://petwell-merchant-api.fly.dev` | 是 |
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://xxx.supabase.co` | 是 |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJ...` | 是 |
-
-### 本地开发 — `.env.local`
-
-```bash
-# 本地开发时无需设置这些，保持默认值即可：
-# DATABASE_URL 为空 → 自动使用 SQLite
-# BACKEND_URL 为空 → 自动使用 localhost:8080
-# NEXT_PUBLIC_SUPABASE_URL 为空 → 自动禁用 Realtime
-
-# 如果想本地连 Supabase 测试：
-# DATABASE_URL=postgresql://postgres:xxx@db.xxx.supabase.co:5432/postgres
-# NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-# NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-```
+1. **demo seed 风险**
+   - `ALLOW_DEMO_SEED=true` 适合联调提速，不适合长期正式环境
+2. **R1 配置遗漏风险**
+   - 只部署 R2 不改 R1，三端链路不会自动闭环
+3. **clinic integration binding 风险**
+   - 当前联调仍依赖 `clinic_happypaws_hk` 这类 integration id 对齐
+4. **Realtime 误判风险**
+   - 不要把“Realtime 还没接”误认为“Merchant 还不能部署”
 
 ---
 
-## 10. 测试清单
+## 15. 一句话版本
 
-### 部署后必须验证的项目
-
-```
-一、基础连通性
-□ 前端页面能打开（Vercel 域名）
-□ 登录能成功（owner@happypaws.com / Test123!）
-□ 登录后能看到 Dashboard 数据
-□ 切换 Shop / Clinic 模式正常
-
-二、多角色流程
-□ 用 Chrome Profile A 登录 Owner
-□ 用 Chrome Profile B 登录 Doctor（doctor1@clinic1.test / Clinic123!）
-□ 用 Chrome Profile C 登录 Frontdesk（frontdesk@clinic1.test / Clinic123!）
-
-三、签到→就诊→结案闭环
-□ Frontdesk 签到 → Doctor 页面自动刷新看到 checked_in（Realtime）
-□ Doctor 开始就诊 → Visit 自动创建，跳转到详情页
-□ Doctor 点"直接结案" → Visit 变 closed + Appointment 变 completed
-□ Frontdesk 和 Owner 页面自动看到 completed
-
-四、权限验证
-□ Frontdesk 尝试"开始就诊" → 返回 403
-□ Doctor 尝试"签到" → 返回 403
-□ Owner 能执行所有操作
-
-五、数据持久化
-□ 关闭浏览器重新打开 → 数据还在
-□ Fly.io 重启后 → 数据还在（数据在 Supabase，不在 Fly.io 容器里）
-```
-
----
-
-## 11. 日常运维
-
-### 11.1 日常部署（代码更新）
-
-```bash
-# 后端更新
-cd backend
-git push origin main   # GitHub 不会自动部署到 Fly.io
-fly deploy             # 手动部署（或配置 GitHub Actions 自动部署）
-
-# 前端更新
-git push origin main   # Vercel 自动部署（默认 main 分支推送即触发）
-```
-
-### 11.2 配置 Fly.io 自动部署（可选）
-
-**新建文件**: `.github/workflows/deploy-backend.yml`
-
-```yaml
-name: Deploy Backend to Fly.io
-on:
-  push:
-    branches: [main]
-    paths: ['backend/**']
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: cd backend && flyctl deploy --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-```
-
-获取 FLY_API_TOKEN：
-```bash
-fly tokens create deploy -x 999999h
-# 将输出的 token 添加到 GitHub → Settings → Secrets → FLY_API_TOKEN
-```
-
-### 11.3 数据库备份
-
-**Supabase 免费层**：自动每日备份，保留 7 天。
-
-**手动备份**（建议每周一次）：
-
-```bash
-# 从 Supabase Dashboard → Settings → Database → Connection string 获取地址
-pg_dump "postgresql://postgres:xxx@db.xxx.supabase.co:5432/postgres" \
-  --format=custom \
-  --file=backup_$(date +%Y%m%d).dump
-```
-
-### 11.4 监控
-
-**Fly.io**：
-```bash
-fly logs           # 实时日志
-fly status         # 应用状态
-fly dashboard      # 打开 Web 监控面板
-```
-
-**Supabase**：Dashboard → Reports → Database Health
-
-**Vercel**：Dashboard → Deployments → 查看每次部署状态
-
----
-
-## 12. 故障排查
-
-### 问题：前端能打开但 API 请求 504 / 502
-
-```bash
-# 检查后端是否在运行
-fly status
-fly logs --app petwell-merchant-api
-
-# 常见原因：
-# 1. DATABASE_URL 配错 → 后端启动失败
-# 2. Fly.io 机器被自动停了 → 检查 fly.toml 的 auto_stop_machines = false
-```
-
-### 问题：登录成功但页面数据为空
-
-```bash
-# 检查 Supabase 是否有数据
-# 进入 Supabase Dashboard → Table Editor → tenants
-# 如果是空的，说明种子数据没有运行
-# 解决：重新部署后端（首次启动会自动 seed）
-fly deploy
-```
-
-### 问题：Realtime 不工作（修改后其他角色不会自动刷新）
-
-```
-1. 检查 Vercel 环境变量 NEXT_PUBLIC_SUPABASE_URL 和 NEXT_PUBLIC_SUPABASE_ANON_KEY 是否设置
-2. 检查 Supabase Replication 是否开启了对应的表
-3. 打开浏览器 DevTools → Console，看是否有 WebSocket 连接错误
-4. 打开 DevTools → Network → WS，确认有到 supabase.co 的 WebSocket 连接
-```
-
-### 问题：CORS 报错（浏览器 Console 显示 Access-Control-Allow-Origin）
-
-```bash
-# 检查 ALLOWED_ORIGINS 是否包含了前端域名
-fly secrets list
-# 应该包含：ALLOWED_ORIGINS=https://merchant.petwell.com
-
-# 确保包含完整的协议 (https://) 且没有尾部斜杠
-```
-
----
-
-## 13. 成本明细
-
-### 免费层（0~3 家诊所测试期）
-
-| 服务 | 免费额度 | 费用 |
-|------|---------|:----:|
-| Supabase | 500MB 数据库, 5GB 带宽, 1GB 存储 | $0 |
-| Fly.io | 3 台 shared-cpu-1x VM, 160GB 出站 | $0* |
-| Vercel | 100GB 带宽, 无限部署 | $0 |
-| **合计** | | **$0/月** |
-
-> *Fly.io 免费额度需要绑定信用卡才能使用
-
-### 正式运营（3~20 家诊所）
-
-| 服务 | 配置 | 费用 |
-|------|------|:----:|
-| Supabase Pro | 8GB 数据库, 250GB 带宽, 100GB 存储 | $25/月 |
-| Fly.io | 1x shared-cpu-1x 256MB（全天运行） | $5/月 |
-| Vercel | Hobby plan（免费） | $0/月 |
-| **合计** | | **$30/月** |
-
-### 规模增长（20~100 家诊所）
-
-| 服务 | 配置 | 费用 |
-|------|------|:----:|
-| Supabase Pro | 同上，但存储和带宽会增长 | $25~50/月 |
-| Fly.io | 2x shared-cpu-1x 512MB（高可用） | $15/月 |
-| Vercel Pro | 自定义域名, 更多带宽 | $20/月 |
-| **合计** | | **$60~85/月** |
-
----
-
-## 14. 扩容路径
-
-```
-现在（测试）         →  6个月后（正式）           →  1年后（规模化）
-
-SQLite 本地          →  Supabase Free             →  Supabase Pro
-localhost            →  Fly.io 1台 (新加坡)       →  Fly.io 2台 (高可用)
-本地浏览器           →  Vercel Hobby              →  Vercel Pro
-无 Realtime          →  Supabase Realtime         →  同
-无域名               →  自定义域名 + HTTPS        →  同
-无监控               →  Fly.io Dashboard          →  Sentry + Datadog
-```
-
-当需要更高的可用性（SLA 99.9%+）或更复杂的需求（多区域部署、读写分离）时，可以从方案 B 平滑迁移到方案 C（AWS/GCP），因为：
-
-- Go 后端已容器化（Dockerfile），直接部署到 ECS / Cloud Run
-- PostgreSQL 迁移到 RDS / Cloud SQL，Supabase 支持导出
-- Next.js 部署到 CloudFront + S3 或继续用 Vercel
-
-**不需要重写代码，只需要改部署配置。**
-
----
-
-## 附录：操作顺序总结
-
-```
-第一次部署，按这个顺序执行：
-
- 1. [注册] Supabase / Fly.io / Vercel 账号
- 2. [Supabase] 创建项目 → 选新加坡 → 记录 DATABASE_URL
- 3. [代码] 完成第 4 步所有代码改动 → git push
- 4. [Fly.io] fly apps create → fly secrets set → fly deploy
- 5. [验证] 访问 fly.dev 地址确认后端运行
- 6. [Supabase] 确认表已自动创建 → 开启 Realtime
- 7. [Vercel] 导入项目 → 设环境变量 → Deploy
- 8. [验证] 访问 vercel.app 地址 → 登录 → 走一遍完整流程
- 9. [域名] （可选）配置自定义域名
-10. [测试] 按第 10 节的测试清单逐项验证
-```
+> 这份手册的正确执行方式是：
+> **先把共享 R2 服务部署起来，再把 R1 指过去，最后跑真实 booking 闭环。**
+> 当前不要让 Realtime 和三档隔离设计阻塞这条主线。

@@ -82,7 +82,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-sky-950 px-4 py-10">
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white p-8 shadow-2xl shadow-slate-950/30">
         <div className="mb-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sky-600">PetWell</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sky-600">Pawrd</p>
           <h1 className="mt-3 text-3xl font-bold text-slate-900">Merchant Portal</h1>
           <p className="mt-2 text-sm text-slate-500">
             {pick('Sign in to access your merchant dashboard and business context.', '登入後即可存取商戶儀表板與業務場景。')}

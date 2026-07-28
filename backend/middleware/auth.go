@@ -3,8 +3,8 @@ package middleware
 import (
 	"context"
 	"net/http"
-	"petwell-merchant-backend/authctx"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/authctx"
+	"pawrd-merchant-backend/models"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -69,6 +69,18 @@ func MerchantAuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		routingConfig, routingErr := loadTenantRoutingConfig(db, session.Tenant.ID)
+		if routingErr == "unavailable" {
+			writeError(c, http.StatusServiceUnavailable, "tenant_routing_unavailable", "Tenant routing is not configured.")
+			c.Abort()
+			return
+		}
+		if routingErr == "invalid" {
+			writeError(c, http.StatusServiceUnavailable, "tenant_routing_invalid", "Tenant routing is invalid.")
+			c.Abort()
+			return
+		}
+
 		// Validate business scope
 		user := &session.User
 		tenant := &session.Tenant
@@ -92,6 +104,10 @@ func MerchantAuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 			SessionID:             session.ID,
 			UserID:                user.ID,
 			TenantID:              tenant.ID,
+			SubscriptionTier:      routingConfig.SubscriptionTier,
+			TenancyMode:           routingConfig.TenancyMode,
+			SchemaName:            routingConfig.SchemaName,
+			DatabaseKey:           routingConfig.DatabaseKey,
 			Role:                  user.Role,
 			CanSwitch:             user.CanSwitch,
 			ActiveBusinessType:    user.ActiveBusinessType,

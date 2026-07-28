@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -72,6 +72,7 @@ type shopTopProductRow struct {
 // GetShopAnalytics handles GET /merchant/analytics/shop.
 func GetShopAnalytics(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			analyticsError(c, http.StatusUnauthorized, 20001, "X-Session-ID header is required")

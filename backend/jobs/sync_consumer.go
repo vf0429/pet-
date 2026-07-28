@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"time"
 
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/models"
 
 	"gorm.io/gorm"
 )

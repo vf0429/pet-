@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"strconv"
 	"time"
 
@@ -68,6 +68,7 @@ type VisitFileItem struct {
 // GetClinicVisit handles GET /merchant/clinic/visits/:id
 func GetClinicVisit(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -190,6 +191,8 @@ func GetClinicVisit(db *gorm.DB) gin.HandlerFunc {
 				"temperature":              visit.Temperature,
 				"heart_rate":               visit.HeartRate,
 				"respiratory_rate":         visit.RespiratoryRate,
+				"ai_summary":               visit.AISummary,
+				"care_notes":               visit.CareNotes,
 				"status":                   string(visit.Status),
 				"pushed_at":                pushedAt,
 				"created_at":               visit.CreatedAt.Format(time.RFC3339),
@@ -251,6 +254,8 @@ type UpdateVisitRequest struct {
 	Temperature            *float64                        `json:"temperature"`
 	HeartRate              *int                            `json:"heart_rate"`
 	RespiratoryRate        *int                            `json:"respiratory_rate"`
+	AISummary              *string                         `json:"ai_summary"`
+	CareNotes              *string                         `json:"care_notes"`
 	TargetStatus           *string                         `json:"target_status"`
 	Diagnoses              *[]UpdateVisitDiagnosisInput    `json:"diagnoses"`
 	Prescriptions          *[]UpdateVisitPrescriptionInput `json:"prescriptions"`
@@ -262,6 +267,7 @@ type UpdateVisitRequest struct {
 // UpdateClinicVisit handles PATCH /merchant/clinic/visits/:id
 func UpdateClinicVisit(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -329,6 +335,12 @@ func UpdateClinicVisit(db *gorm.DB) gin.HandlerFunc {
 			}
 			if req.RespiratoryRate != nil {
 				updates["respiratory_rate"] = *req.RespiratoryRate
+			}
+			if req.AISummary != nil {
+				updates["ai_summary"] = *req.AISummary
+			}
+			if req.CareNotes != nil {
+				updates["care_notes"] = *req.CareNotes
 			}
 			if req.GeneralMedicationNotes != nil {
 				updates["general_medication_notes"] = *req.GeneralMedicationNotes
@@ -483,6 +495,7 @@ func UpdateClinicVisit(db *gorm.DB) gin.HandlerFunc {
 // PushVisitToApp handles POST /merchant/clinic/visits/:id/push-to-app
 func PushVisitToApp(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -544,6 +557,8 @@ func PushVisitToApp(db *gorm.DB) gin.HandlerFunc {
 			"visit_date":        visit.CreatedAt.Format("2006-01-02"),
 			"pet_name":          visit.PetName,
 			"primary_diagnosis": primaryDiagnosis,
+			"ai_summary":        visit.AISummary,
+			"care_notes":        visit.CareNotes,
 			"meds_summary":      medsSummary,
 			"next_followup_at":  nextFollowupAt,
 		}

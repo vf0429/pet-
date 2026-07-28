@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -31,6 +31,7 @@ type ListInventoryAlertsResponse struct {
 // ListInventoryAlerts handles GET /merchant/shop/inventory/alerts
 func ListInventoryAlerts(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})

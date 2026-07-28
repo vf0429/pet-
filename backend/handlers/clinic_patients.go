@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -39,6 +39,7 @@ type ListClinicPatientsQuery struct {
 // ListClinicPatients handles GET /v1/merchant/clinic/patients
 func ListClinicPatients(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -157,6 +158,7 @@ func ListClinicPatients(db *gorm.DB) gin.HandlerFunc {
 // GetClinicPatientDetail handles GET /v1/merchant/clinic/patients/:id
 func GetClinicPatientDetail(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -265,17 +267,17 @@ func GetClinicPatientDetail(db *gorm.DB) gin.HandlerFunc {
 			"code": 0,
 			"data": gin.H{
 				"patient": gin.H{
-					"id":            patient.ID,
-					"name":          patient.Name,
-					"species":       speciesName,
-					"breed":         breedName,
-					"gender":        patient.Gender,
-					"date_of_birth": dobStr,
-					"weight":        patient.Weight,
-					"weight_unit":   patient.WeightUnit,
-					"is_deceased":   patient.IsDeceased,
-					"microchip":     patient.Microchip,
-					"notes":         patient.Notes,
+					"id":              patient.ID,
+					"name":            patient.Name,
+					"species":         speciesName,
+					"breed":           breedName,
+					"gender":          patient.Gender,
+					"date_of_birth":   dobStr,
+					"weight":          patient.Weight,
+					"weight_unit":     patient.WeightUnit,
+					"is_deceased":     patient.IsDeceased,
+					"microchip":       patient.Microchip,
+					"notes":           patient.Notes,
 					"notes_important": patient.NotesImportant,
 				},
 				"owner": gin.H{

@@ -93,7 +93,7 @@ export default function Sidebar() {
   return (
     <aside className="flex h-full w-full flex-col border-r border-slate-200 bg-slate-950 text-slate-100 md:w-60">
       <div className="border-b border-slate-800 px-5 py-5">
-        <p className="text-xs uppercase tracking-[0.24em] text-sky-300">PetWell</p>
+        <p className="text-xs uppercase tracking-[0.24em] text-sky-300">Pawrd</p>
         <p className="mt-2 text-xl font-semibold">Merchant Portal</p>
         <p className="mt-1 text-sm text-slate-400">{tenant?.name ?? pick('Loading tenant...', '正在載入商戶資訊...')}</p>
       </div>

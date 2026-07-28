@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"sort"
 	"time"
 
@@ -67,6 +67,7 @@ type clinicAttendanceRow struct {
 // GetClinicAnalytics handles GET /merchant/analytics/clinic.
 func GetClinicAnalytics(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			analyticsError(c, http.StatusUnauthorized, 20001, "X-Session-ID header is required")
@@ -139,6 +140,19 @@ func GetClinicAnalytics(db *gorm.DB) gin.HandlerFunc {
 		if err != nil {
 			analyticsError(c, http.StatusInternalServerError, 50000, "unexpected server error")
 			return
+		}
+
+		if dailyVisits == nil {
+			dailyVisits = make([]clinicDailyVisitsPoint, 0)
+		}
+		if diagnosisBreakdown == nil {
+			diagnosisBreakdown = make([]clinicDiagnosisBreakdownPoint, 0)
+		}
+		if doctorWorkload == nil {
+			doctorWorkload = make([]map[string]interface{}, 0)
+		}
+		if appointmentAttendance == nil {
+			appointmentAttendance = make([]clinicAttendancePoint, 0)
 		}
 
 		analyticsOK(c, clinicAnalyticsResponse{

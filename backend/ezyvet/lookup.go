@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"log"
 
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/models"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

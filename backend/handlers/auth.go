@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"net/http"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/models"
 	"time"
 
 	"github.com/gin-gonic/gin"

@@ -18,7 +18,7 @@ type Config struct {
 	ClientID     string
 	ClientSecret string
 	SiteUID      string
-	TenantID     uint // petwell-merchant tenant to import into
+	TenantID     uint // Pawrd Merchant tenant to import into
 }
 
 // Client is a rate-limited, token-refreshing HTTP client for the ezyVet API.

@@ -20,3 +20,5 @@ petwell.db
 
 frontend/tsconfig.tsbuildinfo
 specs/.env.keys
+.omx/
+.gocache/

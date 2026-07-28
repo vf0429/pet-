@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"petwell-merchant-backend/ezyvet"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/ezyvet"
+	"pawrd-merchant-backend/models"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -17,14 +17,14 @@ import (
 
 func main() {
 	// ── Flags ──────────────────────────────────────────────────────────────────
-	dryRun       := flag.Bool("dry-run", false, "Print what would be imported without writing to DB")
-	clientID     := flag.String("client-id", os.Getenv("EZYVET_CLIENT_ID"), "ezyVet client_id")
+	dryRun := flag.Bool("dry-run", false, "Print what would be imported without writing to DB")
+	clientID := flag.String("client-id", os.Getenv("EZYVET_CLIENT_ID"), "ezyVet client_id")
 	clientSecret := flag.String("client-secret", os.Getenv("EZYVET_CLIENT_SECRET"), "ezyVet client_secret")
-	siteUID      := flag.String("site-uid", os.Getenv("EZYVET_SITE_UID"), "ezyVet site_uid")
-	baseURL      := flag.String("base-url", "https://api.ezyvet.com", "ezyVet API base URL (use https://api.trial.ezyvet.com for sandbox)")
-	tenantID     := flag.Uint("tenant-id", 0, "petwell-merchant tenant ID to import into (required)")
-	dbPath       := flag.String("db", "db/petwell_merchant.db", "SQLite database path")
-	stepFlag     := flag.String("step", "all", "Run a specific step: all|staff|clients|patients|appointments|visits|pharmacy|prescriptions|treatments|reminders")
+	siteUID := flag.String("site-uid", os.Getenv("EZYVET_SITE_UID"), "ezyVet site_uid")
+	baseURL := flag.String("base-url", "https://api.ezyvet.com", "ezyVet API base URL (use https://api.trial.ezyvet.com for sandbox)")
+	tenantID := flag.Uint("tenant-id", 0, "Pawrd Merchant tenant ID to import into (required)")
+	dbPath := flag.String("db", "pawrd.db", "SQLite database path")
+	stepFlag := flag.String("step", "all", "Run a specific step: all|staff|clients|patients|appointments|visits|pharmacy|prescriptions|treatments|reminders")
 	flag.Parse()
 
 	// ── Validation ─────────────────────────────────────────────────────────────

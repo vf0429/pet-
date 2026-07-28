@@ -12,7 +12,7 @@ import {
 
 export type Locale = 'en' | 'zh-HK'
 
-const STORAGE_KEY = 'petwell-merchant-locale'
+const STORAGE_KEY = 'pawrd-merchant-locale'
 const DEFAULT_LOCALE: Locale = 'en'
 
 export function normalizeLocale(input?: string | null): Locale {

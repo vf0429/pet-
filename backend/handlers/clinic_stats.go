@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -43,6 +43,7 @@ type ClinicStatsResponse struct {
 // GetClinicStats handles GET /merchant/clinic/stats
 func GetClinicStats(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -138,7 +139,8 @@ func GetClinicStats(db *gorm.DB) gin.HandlerFunc {
 		var lastSyncedAt *string
 		if err := db.Where("tenant_id = ? AND entity_type = ? AND status = ?", tenantID, "medical_record", models.AppSyncQueueStatusSent).
 			Order("created_at DESC").
-			First(&lastSyncEntry).Error; err == nil {
+			Limit(1).
+			Find(&lastSyncEntry).Error; err == nil && lastSyncEntry.ID != 0 {
 			s := lastSyncEntry.CreatedAt.Format(time.RFC3339)
 			lastSyncedAt = &s
 		}

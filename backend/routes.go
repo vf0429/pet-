@@ -1,8 +1,8 @@
 package backend
 
 import (
-	"petwell-merchant-backend/handlers"
-	"petwell-merchant-backend/middleware"
+	"pawrd-merchant-backend/handlers"
+	"pawrd-merchant-backend/middleware"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -22,6 +22,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 	// Protected routes (authentication required)
 	protected := merchant.Group("")
 	protected.Use(middleware.MerchantAuthMiddleware(db))
+	protected.Use(middleware.TenantScopedDBMiddleware(db))
 	{
 		// /merchant/me
 		protected.GET("/me", handlers.GetMe(db))

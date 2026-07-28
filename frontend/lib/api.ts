@@ -1,5 +1,5 @@
 /**
- * API Client for PetWell Merchant Portal
+ * API Client for Pawrd Merchant Portal
  * Base path: /v1/merchant
  * All protected endpoints require X-Session-ID and X-Business-Type headers
  */
@@ -942,6 +942,8 @@ export interface ClinicVisitDTO {
   temperature: number | null
   heart_rate: number | null
   respiratory_rate: number | null
+  ai_summary: string
+  care_notes: string
   status: VisitStatus
   pushed_at: string | null
   created_at: string
@@ -1115,6 +1117,8 @@ export interface ClinicVisitVM {
   temperature: number | null
   heartRate: number | null
   respiratoryRate: number | null
+  aiSummary: string
+  careNotes: string
   status: VisitStatus
   pushedAt: string | null
   createdAt: string
@@ -1304,6 +1308,8 @@ export function toClinicVisitVM(dto: ClinicVisitDTO): ClinicVisitVM {
     temperature: dto.temperature,
     heartRate: dto.heart_rate,
     respiratoryRate: dto.respiratory_rate,
+    aiSummary: dto.ai_summary,
+    careNotes: dto.care_notes,
     status: dto.status,
     pushedAt: dto.pushed_at,
     createdAt: dto.created_at,
@@ -1438,6 +1444,8 @@ export interface UpdateClinicVisitParams {
   temperature?: number | null
   heartRate?: number | null
   respiratoryRate?: number | null
+  aiSummary?: string
+  careNotes?: string
   targetStatus?: VisitStatus
   diagnoses?: Array<{
     id: number | null
@@ -1478,6 +1486,8 @@ export async function updateClinicVisit(
   if (data.temperature !== undefined) body.temperature = data.temperature
   if (data.heartRate !== undefined) body.heart_rate = data.heartRate
   if (data.respiratoryRate !== undefined) body.respiratory_rate = data.respiratoryRate
+  if (data.aiSummary !== undefined) body.ai_summary = data.aiSummary
+  if (data.careNotes !== undefined) body.care_notes = data.careNotes
   if (data.targetStatus !== undefined) body.target_status = data.targetStatus
   if (data.generalMedicationNotes !== undefined) body.general_medication_notes = data.generalMedicationNotes
   if (data.diagnoses !== undefined) {
@@ -2527,16 +2537,16 @@ export function toClinicAnalyticsVM(dto: ClinicAnalyticsDTO): ClinicAnalyticsVM 
       revisitRate30d: dto.summary.revisit_rate_30d,
       prescriptionRate: dto.summary.prescription_rate,
     },
-    dailyVisits: dto.daily_visits,
-    diagnosisBreakdown: dto.diagnosis_breakdown,
-    doctorWorkload: dto.doctor_workload.map((item) => {
+    dailyVisits: dto.daily_visits ?? [],
+    diagnosisBreakdown: dto.diagnosis_breakdown ?? [],
+    doctorWorkload: (dto.doctor_workload ?? []).map((item) => {
       const { doctor_name, ...weeks } = item
       return {
         doctorName: doctor_name,
         ...weeks,
       }
     }),
-    appointmentAttendance: dto.appointment_attendance.map((item) => ({
+    appointmentAttendance: (dto.appointment_attendance ?? []).map((item) => ({
       date: item.date,
       confirmed: item.confirmed,
       checkedIn: item.checked_in,

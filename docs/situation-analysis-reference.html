@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pet Health Situation Analysis - Reference</title>
+    <style>
+      :root {
+        --bg: #4d84ff;
+        --bg-dark: #3269ea;
+        --card: rgba(255, 255, 255, 0.1);
+        --card-strong: rgba(255, 255, 255, 0.16);
+        --text: #ffffff;
+        --muted: rgba(255, 255, 255, 0.82);
+        --line: rgba(255, 255, 255, 0.22);
+        --accent: #dbe8ff;
+        --danger: #ffe082;
+        --success: #b9ffcf;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+        background: linear-gradient(180deg, var(--bg) 0%, var(--bg-dark) 100%);
+        color: var(--text);
+      }
+
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: center;
+        padding: 14px 18px;
+        backdrop-filter: blur(18px);
+        background: rgba(38, 75, 170, 0.45);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .nav a {
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        padding: 10px 14px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .slide {
+        min-height: 100vh;
+        padding: 72px 38px 44px;
+        display: flex;
+        align-items: stretch;
+      }
+
+      .frame {
+        width: min(1440px, 100%);
+        margin: 0 auto;
+        display: grid;
+        gap: 28px;
+      }
+
+      .eyebrow {
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      h1, h2 {
+        margin: 0;
+        line-height: 1.08;
+        font-weight: 900;
+      }
+
+      h1 {
+        font-size: clamp(42px, 6vw, 78px);
+        max-width: 980px;
+      }
+
+      h2 {
+        font-size: clamp(34px, 4vw, 58px);
+      }
+
+      .subtitle {
+        max-width: 980px;
+        font-size: clamp(20px, 2.1vw, 32px);
+        line-height: 1.45;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .grid-3,
+      .grid-2,
+      .stats,
+      .timeline,
+      .solution-grid {
+        display: grid;
+        gap: 22px;
+      }
+
+      .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stats { grid-template-columns: 1.3fr 0.8fr 0.9fr; }
+      .timeline { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .solution-grid { grid-template-columns: 1.1fr 0.9fr; align-items: start; }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        padding: 26px;
+        box-shadow: 0 18px 44px rgba(7, 24, 79, 0.16);
+      }
+
+      .card.strong { background: var(--card-strong); }
+
+      .metric {
+        font-size: clamp(44px, 6vw, 88px);
+        font-weight: 900;
+        line-height: 0.95;
+        margin-bottom: 14px;
+      }
+
+      .label {
+        font-size: 16px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--accent);
+        margin-bottom: 10px;
+        font-weight: 800;
+      }
+
+      .body,
+      li,
+      p {
+        font-size: clamp(18px, 1.55vw, 28px);
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 1.2em;
+      }
+
+      .kpi-note {
+        font-size: clamp(17px, 1.35vw, 24px);
+        color: var(--muted);
+      }
+
+      .flow-step {
+        position: relative;
+        padding: 24px 22px 58px;
+      }
+
+      .flow-step::after {
+        content: "→";
+        position: absolute;
+        right: -16px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 42px;
+        font-weight: 900;
+        color: rgba(255, 255, 255, 0.45);
+      }
+
+      .flow-step:last-child::after { display: none; }
+
+      .step-no {
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.16);
+        font-weight: 900;
+        margin-bottom: 18px;
+      }
+
+      .step-title {
+        font-size: clamp(24px, 2vw, 34px);
+        font-weight: 900;
+        margin-bottom: 12px;
+      }
+
+      .danger { color: var(--danger); }
+      .success { color: var(--success); }
+
+      .big-quote {
+        font-size: clamp(24px, 2.4vw, 40px);
+        line-height: 1.45;
+        font-weight: 800;
+      }
+
+      .section-title {
+        font-size: clamp(30px, 3.4vw, 54px);
+        font-weight: 900;
+        margin-bottom: 18px;
+      }
+
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .pill {
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid var(--line);
+        font-size: 16px;
+        font-weight: 800;
+      }
+
+      .footer-note {
+        font-size: 15px;
+        color: rgba(255,255,255,0.72);
+      }
+
+      @media (max-width: 1080px) {
+        .grid-3,
+        .grid-2,
+        .stats,
+        .timeline,
+        .solution-grid {
+          grid-template-columns: 1fr;
+        }
+        .flow-step::after { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="nav">
+      <a href="#slide-1">01 供需失衡</a>
+      <a href="#slide-2">02 就診前</a>
+      <a href="#slide-3">03 就診中/後</a>
+      <a href="#slide-4">04 AI 解法</a>
+    </nav>
+
+    <section class="slide" id="slide-1">
+      <div class="frame">
+        <div class="eyebrow">Situation Analysis / Slide 01</div>
+        <h1>寵物數量快速增長，但獸醫供給與健康決策能力沒有同步擴張</h1>
+        <p class="subtitle">
+          在香港，超過百萬隻寵物對應約 1,433 名獸醫。醫療資源稀缺，不應被所有日常健康判斷與低效率問診消耗。
+        </p>
+
+        <div class="stats">
+          <div class="card strong">
+            <div class="label">Pet Population</div>
+            <div class="metric">108萬+</div>
+            <p class="body">約 40 萬隻貓狗，加上約 68 萬隻其他寵物，健康管理需求高度分散、持續存在。</p>
+          </div>
+          <div class="card">
+            <div class="label">Veterinarians</div>
+            <div class="metric">1,433</div>
+            <p class="body">專業醫療供給有限，門診時間珍貴，難以承接所有前置健康判斷。</p>
+          </div>
+          <div class="card">
+            <div class="label">Pet / Vet Ratio</div>
+            <div class="metric">754:1</div>
+            <p class="body">平均每位獸醫要面對數百隻寵物的潛在照護需求，供需明顯失衡。</p>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="card">
+            <div class="section-title">痛點 1</div>
+            <p class="big-quote">就診費用高，主人對「該不該去」缺乏低成本、可信的判斷工具。</p>
+          </div>
+          <div class="card">
+            <div class="section-title">痛點 2</div>
+            <p class="big-quote">日常健康管理分散在記憶、聊天記錄與零碎病歷之中，難以持續追蹤。</p>
+          </div>
+          <div class="card">
+            <div class="section-title">痛點 3</div>
+            <p class="big-quote">真正需要的是前置分流層：先觀察、再判斷、最後把對的案例送往就診。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-2">
+      <div class="frame">
+        <div class="eyebrow">Solution Framing / Slide 02</div>
+        <h2>解法一：在就診前建立 AI 健康分流層，先處理「是否需要看醫生」</h2>
+        <p class="subtitle">
+          第一個切入點不是替代醫院，而是在症狀剛出現時，先用結構化追蹤與風險分析，把主人從焦慮式決策帶到 evidence-based triage。
+        </p>
+
+        <div class="timeline">
+          <div class="card flow-step">
+            <div class="step-no">1</div>
+            <div class="step-title">收集日常訊號</div>
+            <p>把食慾、排便、活動、情緒、飲水、用藥等日常變化結構化記錄，不再依賴記憶。</p>
+          </div>
+          <div class="card flow-step">
+            <div class="step-no">2</div>
+            <div class="step-title">AI 分析變化</div>
+            <p>根據連續訊號辨識異常模式，判斷是短暫波動、需要觀察，還是值得進一步注意的 signal。</p>
+          </div>
+          <div class="card flow-step">
+            <div class="step-no">3</div>
+            <div class="step-title">給出分流建議</div>
+            <p>區分「居家觀察」「短期預約」「立即就醫」，讓主人在 cost-efficient 前提下做出合理決策。</p>
+          </div>
+          <div class="card flow-step">
+            <div class="step-no">4</div>
+            <div class="step-title">保留就診依據</div>
+            <p>把時間線、症狀演變與風險標記整理成診前摘要，提高問診效率與就診品質。</p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card strong">
+            <div class="section-title">解決什麼問題</div>
+            <ul>
+              <li>降低不必要門診與焦慮型消費。</li>
+              <li>提升真正高風險情況的識別速度。</li>
+              <li>讓主人先有一個低成本、可信的第一層判斷。</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="section-title">這頁核心訊息</div>
+            <p class="big-quote">AI assistant 先接住「日常健康判斷」，讓有限的獸醫資源集中在真正需要專業處理的病例上。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-3">
+      <div class="frame">
+        <div class="eyebrow">Solution Framing / Slide 03</div>
+        <h2>解法二：在就診中與就診後建立連續健康檔案，修復碎片化體驗</h2>
+        <p class="subtitle">
+          第二個切入點是把健康資料從一次次臨時問答，變成可累積、可帶走、可理解的長期 profile，讓每次就診都建立在前一次基礎上。
+        </p>
+
+        <div class="grid-3">
+          <div class="card strong">
+            <div class="section-title">就診中</div>
+            <ul>
+              <li><strong>病歷整合：</strong>把疫苗、藥物、過敏史、檢查結果與診斷整理成統一時間線。</li>
+              <li><strong>診前摘要：</strong>在看診前先生成重點，減少重複問答與資訊遺漏。</li>
+              <li><strong>跨院 continuity：</strong>即使換診所，也能快速提供完整背景。</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="section-title">就診後</div>
+            <ul>
+              <li><strong>follow-up 追蹤：</strong>依病況持續記錄恢復、反應與副作用。</li>
+              <li><strong>日程提醒：</strong>驅蟲、疫苗、年檢、洗牙等 routine care 主動提醒。</li>
+              <li><strong>健康理解：</strong>把專業建議轉譯成主人看得懂的行動項目。</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="section-title">長期價值</div>
+            <ul>
+              <li><strong>減少重複檢查：</strong>因資料遺失導致的重做成本下降。</li>
+              <li><strong>提升問診效率：</strong>獸醫更快進入重點判斷。</li>
+              <li><strong>讓健康管理可累積：</strong>從單次就診，走向長期照護關係。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="label">Core message</div>
+          <p class="big-quote">
+            真正的產品價值不只是「提醒」，而是把分散在不同時間、不同診所、不同記錄裡的健康資訊，重組成一個可持續運作的 pet health profile。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-4">
+      <div class="frame">
+        <div class="eyebrow">Solution Framing / Slide 04</div>
+        <h2>解法三：建立可信的 AI + 醫療協作機制，讓分流、追蹤與信任形成閉環</h2>
+        <p class="subtitle">
+          最終不是單點工具，而是一個以 AI 為入口、以臨床資源為後盾的健康管理系統：前面負責分析與分流，後面承接真正需要醫療處置的個案。
+        </p>
+
+        <div class="solution-grid">
+          <div class="card strong">
+            <div class="section-title">Closed-loop system</div>
+            <div class="grid-2">
+              <div class="card">
+                <div class="label">Track</div>
+                <p>持續累積日常健康訊號，讓每個判斷建立在長期資料而非單次描述上。</p>
+              </div>
+              <div class="card">
+                <div class="label">Analyze</div>
+                <p>以 AI 辨識風險、異常趨勢與需要 follow-up 的情況，形成可解釋建議。</p>
+              </div>
+              <div class="card">
+                <div class="label">Triage</div>
+                <p>把案例分流到居家觀察、普通預約或緊急就診，減少系統擁堵。</p>
+              </div>
+              <div class="card">
+                <div class="label">Trust Loop</div>
+                <p>透過持續結果回饋、病程追蹤與診後評估，逐步提高建議的可靠性與信任度。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="card">
+              <div class="section-title">Expected outcomes</div>
+              <ul>
+                <li><span class="success">更低成本</span> 地處理日常健康決策</li>
+                <li><span class="success">更早</span> 發現值得就診的高風險訊號</li>
+                <li><span class="success">更完整</span> 地保留診療與追蹤脈絡</li>
+                <li><span class="success">更可信</span> 地建立主人與醫療系統之間的信任</li>
+              </ul>
+            </div>
+            <div class="card">
+              <div class="section-title">Positioning</div>
+              <p class="big-quote">AI 不是取代獸醫，而是成為獸醫前面的操作層、獸醫後面的追蹤層，以及主人日常健康管理的中樞。</p>
+              <div class="pill-row" style="margin-top:18px;">
+                <span class="pill">Before visit</span>
+                <span class="pill">During care</span>
+                <span class="pill">After care</span>
+                <span class="pill">Trust layer</span>
+                <span class="pill">Closed loop</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="footer-note">Reference mockup only. Reframed so slide 1 states the problem and slides 2-4 progressively explain the solution path.</p>
+      </div>
+    </section>
+  </body>
+</html>

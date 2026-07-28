@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"strconv"
 	"time"
 
@@ -36,6 +36,7 @@ type ListClinicRemindersQuery struct {
 // ListClinicReminders handles GET /v1/merchant/clinic/reminders
 func ListClinicReminders(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -153,6 +154,7 @@ type FulfillReminderRequest struct {
 // FulfillClinicReminder handles PATCH /v1/merchant/clinic/reminders/:id
 func FulfillClinicReminder(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -200,7 +202,7 @@ func FulfillClinicReminder(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"code": 0,
 			"data": gin.H{
-				"id":               reminder.ID,
+				"id":                reminder.ID,
 				"last_fulfilled_at": fulfilledStr,
 				"updated_at":        time.Now().Format("2006-01-02T15:04:05Z07:00"),
 			},

@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Situation Analysis Visual V2</title>
+  <style>
+    :root {
+      --bg1: #4f86ff;
+      --bg2: #3b6ef0;
+      --panel: rgba(255,255,255,0.11);
+      --panel2: rgba(255,255,255,0.16);
+      --line: rgba(255,255,255,0.18);
+      --white: #fff;
+      --muted: rgba(255,255,255,0.78);
+      --soft: rgba(255,255,255,0.58);
+      --yellow: #ffd76a;
+      --green: #8ef0b1;
+      --pink: #ffc3d8;
+      --shadow: 0 18px 50px rgba(15, 35, 98, 0.18);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, "PingFang TC", "Noto Sans TC", sans-serif;
+      background: linear-gradient(180deg, var(--bg1), var(--bg2));
+      color: var(--white);
+    }
+    .nav {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; justify-content: center; gap: 10px;
+      padding: 12px; backdrop-filter: blur(16px);
+      background: rgba(38, 73, 158, 0.35); border-bottom: 1px solid var(--line);
+    }
+    .nav a {
+      color: white; text-decoration: none; font-weight: 800; font-size: 12px;
+      padding: 9px 14px; border-radius: 999px; border: 1px solid var(--line);
+      background: rgba(255,255,255,0.07);
+    }
+    .slide {
+      min-height: 100vh;
+      padding: 34px;
+      display: flex;
+      align-items: center;
+    }
+    .page {
+      width: min(1460px, 100%);
+      min-height: calc(100vh - 68px);
+      margin: 0 auto;
+      border-radius: 34px;
+      padding: 34px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 24px;
+    }
+    .eyebrow { font-size: 13px; font-weight: 900; letter-spacing: .18em; color: var(--soft); text-transform: uppercase; }
+    h1, h2 { margin: 0; line-height: 1.02; font-weight: 900; }
+    h1 { font-size: clamp(42px, 6vw, 78px); max-width: 960px; }
+    h2 { font-size: clamp(34px, 5vw, 62px); max-width: 1020px; }
+    .sub { color: var(--muted); font-size: clamp(18px, 1.8vw, 26px); max-width: 980px; line-height: 1.4; }
+    .grid2, .grid3, .grid4 { display: grid; gap: 20px; }
+    .grid2 { grid-template-columns: 1.1fr .9fr; }
+    .grid3 { grid-template-columns: repeat(3, 1fr); }
+    .grid4 { grid-template-columns: repeat(4, 1fr); }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
+    .card.strong { background: var(--panel2); }
+    .title-sm { font-size: 14px; letter-spacing: .1em; text-transform: uppercase; color: var(--soft); font-weight: 800; margin-bottom: 14px; }
+    .big { font-size: clamp(48px, 6vw, 92px); line-height: .95; font-weight: 900; }
+    .mid { font-size: clamp(24px, 2.5vw, 38px); line-height: 1.15; font-weight: 900; }
+    .p { font-size: clamp(16px, 1.25vw, 22px); line-height: 1.45; color: var(--muted); }
+    .hero-split { display: grid; grid-template-columns: 1.2fr .8fr; gap: 22px; align-items: stretch; }
+    .ratio-box {
+      display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px;
+      min-height: 220px;
+    }
+    .ratio-side {
+      display: grid; gap: 8px; justify-items: center; text-align: center;
+    }
+    .icon-circle {
+      width: 92px; height: 92px; border-radius: 50%;
+      display: grid; place-items: center; font-size: 36px; font-weight: 900;
+      background: rgba(255,255,255,0.13); border: 1px solid var(--line);
+    }
+    .ratio-divider {
+      font-size: clamp(36px, 5vw, 80px); font-weight: 900; color: var(--yellow);
+    }
+    .mini-bars { display: grid; gap: 12px; }
+    .bar {
+      display: grid; gap: 8px;
+    }
+    .bar-track {
+      height: 14px; border-radius: 999px; background: rgba(255,255,255,0.12); overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .bar-fill { height: 100%; border-radius: 999px; }
+    .b1 { width: 92%; background: linear-gradient(90deg, #ffd76a, #ffb347); }
+    .b2 { width: 36%; background: linear-gradient(90deg, #8ef0b1, #4ccf85); }
+    .b3 { width: 76%; background: linear-gradient(90deg, #ffc3d8, #ff88b0); }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .chip { padding: 10px 14px; border-radius: 999px; background: rgba(255,255,255,0.1); border: 1px solid var(--line); font-size: 14px; font-weight: 800; }
+    .signal-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: center; }
+    .flow-card {
+      position: relative; min-height: 220px; display: grid; align-content: start; gap: 12px;
+    }
+    .flow-card::after {
+      content: '→'; position: absolute; right: -14px; top: 42%; font-size: 42px; color: rgba(255,255,255,0.35); font-weight: 900;
+    }
+    .flow-card:last-child::after { display: none; }
+    .step { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,0.14); font-weight: 900; }
+    .signal-line {
+      height: 88px; border-radius: 20px; background: rgba(255,255,255,0.08); border: 1px solid var(--line); position: relative; overflow: hidden;
+    }
+    .signal-line svg { width: 100%; height: 100%; }
+    .phone {
+      aspect-ratio: 10/18; border-radius: 34px; border: 1px solid var(--line);
+      background: rgba(255,255,255,0.08); padding: 18px; display: grid; gap: 14px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+    }
+    .phone-top { height: 20px; width: 40%; margin: 0 auto; border-radius: 999px; background: rgba(255,255,255,0.12); }
+    .widget { background: rgba(255,255,255,0.1); border: 1px solid var(--line); border-radius: 18px; padding: 14px; display: grid; gap: 8px; }
+    .widget .line { height: 10px; border-radius: 999px; background: rgba(255,255,255,0.16); }
+    .widget .line.w60 { width: 60%; }
+    .widget .line.w80 { width: 80%; }
+    .widget .line.w40 { width: 40%; }
+    .profile-layout { display: grid; grid-template-columns: .9fr 1.1fr; gap: 20px; }
+    .timeline-stack { display: grid; gap: 12px; }
+    .timeline-item {
+      display: grid; grid-template-columns: 74px 1fr; gap: 12px; align-items: center;
+      padding: 14px; border-radius: 18px; background: rgba(255,255,255,0.08); border: 1px solid var(--line);
+    }
+    .badge { padding: 8px 10px; border-radius: 999px; text-align: center; font-weight: 900; font-size: 12px; }
+    .badge.y { background: rgba(255,215,106,.18); color: #ffe39d; }
+    .badge.g { background: rgba(142,240,177,.18); color: #b9ffd2; }
+    .badge.p { background: rgba(255,195,216,.18); color: #ffd8e7; }
+    .network {
+      display: grid; place-items: center; min-height: 420px; position: relative;
+    }
+    .node {
+      position: absolute; width: 190px; min-height: 92px; border-radius: 24px; padding: 18px;
+      background: rgba(255,255,255,0.1); border: 1px solid var(--line); text-align: center;
+      display: grid; place-items: center; font-weight: 900; font-size: 24px;
+    }
+    .node.small { width: 160px; min-height: 82px; font-size: 20px; }
+    .center { width: 240px; min-height: 120px; background: rgba(255,255,255,0.18); }
+    .n-top { top: 0; left: 50%; transform: translateX(-50%); }
+    .n-left { left: 2%; top: 52%; transform: translateY(-50%); }
+    .n-right { right: 2%; top: 52%; transform: translateY(-50%); }
+    .n-bottom { bottom: 0; left: 50%; transform: translateX(-50%); }
+    .n-center { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+    .network svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .impact { display: grid; gap: 14px; }
+    .impact-row {
+      display: grid; grid-template-columns: 180px 1fr; gap: 16px; align-items: center;
+    }
+    .impact-label { font-weight: 900; font-size: 18px; }
+    .impact-track { height: 16px; border-radius: 999px; background: rgba(255,255,255,0.12); overflow: hidden; }
+    .impact-fill { height: 100%; border-radius: 999px; }
+    .f1 { width: 85%; background: linear-gradient(90deg, #8ef0b1, #53d38a); }
+    .f2 { width: 78%; background: linear-gradient(90deg, #ffd76a, #ffb347); }
+    .f3 { width: 88%; background: linear-gradient(90deg, #ffc3d8, #ff8db5); }
+    .f4 { width: 74%; background: linear-gradient(90deg, #b4cfff, #dbe8ff); }
+    @media (max-width: 1100px) {
+      .grid2, .grid3, .grid4, .hero-split, .signal-flow, .profile-layout { grid-template-columns: 1fr; }
+      .flow-card::after { display: none; }
+      .network { min-height: 560px; }
+      .node.small, .node, .center { width: 80%; }
+      .n-top { top: 0; }
+      .n-center { top: 36%; }
+      .n-left { left: 50%; top: 58%; transform: translate(-50%, -50%); }
+      .n-right { right: auto; left: 50%; top: 74%; transform: translate(-50%, -50%); }
+      .n-bottom { bottom: 0; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a href="#s1">01 供需失衡</a>
+    <a href="#s2">02 記憶負擔</a>
+    <a href="#s3">03 信任荒漠</a>
+    <a href="#s4">04 分流</a>
+    <a href="#s5">05 健康檔案</a>
+    <a href="#s6">06 閉環</a>
+  </nav>
+
+  <section class="slide" id="s1">
+    <div class="page">
+      <div class="eyebrow">Slide 01 / Problem</div>
+      <h1>供需失衡，讓日常健康判斷變得昂貴又低效</h1>
+      <div class="hero-split">
+        <div class="card strong ratio-box">
+          <div class="ratio-side">
+            <div class="icon-circle">🐾</div>
+            <div class="big">108萬+</div>
+            <div class="p">香港寵物總量</div>
+          </div>
+          <div class="ratio-divider">vs</div>
+          <div class="ratio-side">
+            <div class="icon-circle">🩺</div>
+            <div class="big">1,433</div>
+            <div class="p">註冊獸醫</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="title-sm">System Pressure</div>
+          <div class="mid">平均每位獸醫面對 <span style="color:var(--yellow)">754</span> 隻寵物的潛在照護需求</div>
+          <div style="height:18px"></div>
+          <div class="mini-bars">
+            <div class="bar">
+              <div class="p">就診成本壓力</div>
+              <div class="bar-track"><div class="bar-fill b1"></div></div>
+            </div>
+            <div class="bar">
+              <div class="p">日常判斷能力</div>
+              <div class="bar-track"><div class="bar-fill b2"></div></div>
+            </div>
+            <div class="bar">
+              <div class="p">非必要就診風險</div>
+              <div class="bar-track"><div class="bar-fill b3"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="grid3">
+        <div class="card"><div class="mid">高成本</div><div class="p">主人不知道該不該立刻去看醫生</div></div>
+        <div class="card"><div class="mid">低信心</div><div class="p">只能靠經驗、搜尋與社群留言判斷</div></div>
+        <div class="card"><div class="mid">低效率</div><div class="p">真正高風險病例不一定被及時分流</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s2">
+    <div class="page">
+      <div class="eyebrow">Slide 02 / Pain Point</div>
+      <h2>第二个痛点不是“没数据”，而是主人被迫用记忆管理健康</h2>
+      <div class="grid2">
+        <div class="card strong">
+          <div class="title-sm">Memory burden</div>
+          <div class="grid3">
+            <div class="card"><div class="mid">疫苗</div><div class="p">打过什么针？什么时候补？</div></div>
+            <div class="card"><div class="mid">药物</div><div class="p">吃过什么药？有没有副作用？</div></div>
+            <div class="card"><div class="mid">过敏史</div><div class="p">换一家医院又要重新解释一次</div></div>
+          </div>
+          <div style="height:18px"></div>
+          <div class="card" style="background:rgba(255,255,255,0.08)">
+            <div class="mid">病历、检查、护理日程分散在聊天记录、纸本单据、不同诊所与个人记忆里</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="title-sm">What this creates</div>
+          <div class="timeline-stack">
+            <div class="timeline-item">
+              <div class="badge y">01</div>
+              <div><div class="mid" style="font-size:24px;">重复沟通</div><div class="p">每次看诊都像重新 onboarding 一次</div></div>
+            </div>
+            <div class="timeline-item">
+              <div class="badge p">02</div>
+              <div><div class="mid" style="font-size:24px;">重复检查</div><div class="p">因为资料断裂，医生无法快速建立完整背景</div></div>
+            </div>
+            <div class="timeline-item">
+              <div class="badge g">03</div>
+              <div><div class="mid" style="font-size:24px;">照护遗漏</div><div class="p">驱虫、三针、年检、牙齿护理容易被忙碌生活打断</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="mid">真正的痛点是：没有一个连续、可累积、可随时调用的 pet health profile，去降低记忆负担并提升照护 reliability。</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s3">
+    <div class="page">
+      <div class="eyebrow">Slide 03 / Pain Point</div>
+      <h2>第三个痛点是信任荒漠：信息很多，但主人无法判断什么值得相信</h2>
+      <div class="grid2">
+        <div class="card strong network">
+          <svg viewBox="0 0 1000 700" fill="none">
+            <path d="M500 140 L500 295" stroke="rgba(255,255,255,0.22)" stroke-width="6"/>
+            <path d="M325 405 L430 350" stroke="rgba(255,255,255,0.22)" stroke-width="6"/>
+            <path d="M675 405 L570 350" stroke="rgba(255,255,255,0.22)" stroke-width="6"/>
+            <path d="M500 405 L500 560" stroke="rgba(255,255,255,0.22)" stroke-width="6"/>
+          </svg>
+          <div class="node small n-top">Google / 社群</div>
+          <div class="node center n-center">Pet Owner</div>
+          <div class="node small n-left">口コミ / 群组</div>
+          <div class="node small n-right">Clinic Advice</div>
+          <div class="node small n-bottom">收费 / 检查建议</div>
+        </div>
+        <div class="card">
+          <div class="title-sm">Anxiety drivers</div>
+          <div class="timeline-stack">
+            <div class="timeline-item">
+              <div class="badge y">A</div>
+              <div><div class="mid" style="font-size:24px;">评价真实性存疑</div><div class="p">社群推荐充满主观情绪，Google 差评也未必对应医疗能力</div></div>
+            </div>
+            <div class="timeline-item">
+              <div class="badge p">B</div>
+              <div><div class="mid" style="font-size:24px;">建议难以验证</div><div class="p">高价检查到底是必要处置还是过度医疗，主人很难判断</div></div>
+            </div>
+            <div class="timeline-item">
+              <div class="badge g">C</div>
+              <div><div class="mid" style="font-size:24px;">信息不对称</div><div class="p">用户不是没有信息，而是没有可靠的解释框架</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="mid">所以核心痛点不是“信息不足”，而是缺少一个能把记录、分析、建议与后续结果串起来的信任机制。</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s4">
+    <div class="page">
+      <div class="eyebrow">Slide 04 / Solution 1</div>
+      <h2>先做「就診前分流」：把焦慮式決策變成結構化判斷</h2>
+      <div class="grid2">
+        <div class="card strong">
+          <div class="signal-flow">
+            <div class="flow-card card">
+              <div class="step">1</div>
+              <div class="mid">Track</div>
+              <div class="p">食慾 / 排便 / 活動 / 飲水</div>
+            </div>
+            <div class="flow-card card">
+              <div class="step">2</div>
+              <div class="mid">Analyze</div>
+              <div class="signal-line">
+                <svg viewBox="0 0 300 100" fill="none">
+                  <path d="M0 75 C35 20, 70 20, 100 60 S170 95, 205 42 S260 35, 300 55" stroke="#FFD76A" stroke-width="6" stroke-linecap="round"/>
+                </svg>
+              </div>
+            </div>
+            <div class="flow-card card">
+              <div class="step">3</div>
+              <div class="mid">Signal</div>
+              <div class="p">正常波動 / 需觀察 / 值得留意</div>
+            </div>
+            <div class="flow-card card">
+              <div class="step">4</div>
+              <div class="mid">Triage</div>
+              <div class="chip-row">
+                <span class="chip">居家觀察</span>
+                <span class="chip">短期預約</span>
+                <span class="chip">立即就醫</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone">
+          <div class="phone-top"></div>
+          <div class="widget">
+            <div class="title-sm">Today</div>
+            <div class="line w80"></div>
+            <div class="line w40"></div>
+          </div>
+          <div class="widget">
+            <div class="title-sm">Risk level</div>
+            <div class="mid" style="font-size:32px;color:var(--yellow)">Observe 24h</div>
+            <div class="line w60"></div>
+          </div>
+          <div class="widget">
+            <div class="title-sm">Suggested action</div>
+            <div class="line w80"></div>
+            <div class="line w80"></div>
+            <div class="line w60"></div>
+          </div>
+          <div class="widget">
+            <div class="title-sm">Pre-visit summary</div>
+            <div class="line w80"></div>
+            <div class="line w60"></div>
+          </div>
+        </div>
+      </div>
+      <div class="grid3">
+        <div class="card"><div class="mid">更低成本</div><div class="p">先處理 80% 日常判斷需求</div></div>
+        <div class="card"><div class="mid">更早識別</div><div class="p">把高風險 signal 往前拉</div></div>
+        <div class="card"><div class="mid">更合理分流</div><div class="p">把獸醫時間留給真正需要的人</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s5">
+    <div class="page">
+      <div class="eyebrow">Slide 05 / Solution 2</div>
+      <h2>再做「連續健康檔案」：把碎片資訊變成可累積的 pet profile</h2>
+      <div class="profile-layout">
+        <div class="card strong">
+          <div class="title-sm">Unified Pet Profile</div>
+          <div class="phone" style="aspect-ratio:auto;height:100%;min-height:520px;">
+            <div class="phone-top"></div>
+            <div class="widget"><div class="mid" style="font-size:30px;">Mochi</div><div class="p">Dog · 4 years · 8.2kg</div></div>
+            <div class="widget"><div class="title-sm">Allergy</div><div class="line w60"></div></div>
+            <div class="widget"><div class="title-sm">Vaccine</div><div class="line w80"></div><div class="line w40"></div></div>
+            <div class="widget"><div class="title-sm">Medication</div><div class="line w80"></div><div class="line w60"></div></div>
+            <div class="widget"><div class="title-sm">Follow-up</div><div class="line w80"></div></div>
+          </div>
+        </div>
+        <div class="timeline-stack">
+          <div class="timeline-item">
+            <div class="badge y">Visit</div>
+            <div><div class="mid" style="font-size:24px;">診前摘要</div><div class="p">症狀時間線、用藥、異常變化一次帶進門診</div></div>
+          </div>
+          <div class="timeline-item">
+            <div class="badge g">Care</div>
+            <div><div class="mid" style="font-size:24px;">病歷整合</div><div class="p">疫苗、檢查、過敏史、治療結果都放進同一份 profile</div></div>
+          </div>
+          <div class="timeline-item">
+            <div class="badge p">After</div>
+            <div><div class="mid" style="font-size:24px;">Follow-up</div><div class="p">自動提醒驅蟲、年檢、洗牙、回診與恢復追蹤</div></div>
+          </div>
+          <div class="card">
+            <div class="title-sm">Result</div>
+            <div class="grid3">
+              <div><div class="mid" style="font-size:22px;">少重複檢查</div></div>
+              <div><div class="mid" style="font-size:22px;">高問診效率</div></div>
+              <div><div class="mid" style="font-size:22px;">長期健康連續性</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s6">
+    <div class="page">
+      <div class="eyebrow">Slide 06 / Solution 3</div>
+      <h2>最後形成 AI + 醫療的閉環：前面分流，後面承接，中間持續追蹤</h2>
+      <div class="grid2">
+        <div class="card strong network">
+          <svg viewBox="0 0 1000 700" fill="none">
+            <path d="M500 130 L500 290" stroke="rgba(255,255,255,0.28)" stroke-width="6"/>
+            <path d="M320 390 L430 350" stroke="rgba(255,255,255,0.28)" stroke-width="6"/>
+            <path d="M680 390 L570 350" stroke="rgba(255,255,255,0.28)" stroke-width="6"/>
+            <path d="M500 410 L500 560" stroke="rgba(255,255,255,0.28)" stroke-width="6"/>
+          </svg>
+          <div class="node small n-top">Pet Owner</div>
+          <div class="node center n-center">AI Health Assistant</div>
+          <div class="node small n-left">Home Care</div>
+          <div class="node small n-right">Clinic / Vet</div>
+          <div class="node small n-bottom">Follow-up Loop</div>
+        </div>
+        <div class="card">
+          <div class="title-sm">System Outcome</div>
+          <div class="impact">
+            <div class="impact-row"><div class="impact-label">Decision cost ↓</div><div class="impact-track"><div class="impact-fill f1"></div></div></div>
+            <div class="impact-row"><div class="impact-label">Early detection ↑</div><div class="impact-track"><div class="impact-fill f2"></div></div></div>
+            <div class="impact-row"><div class="impact-label">Data continuity ↑</div><div class="impact-track"><div class="impact-fill f3"></div></div></div>
+            <div class="impact-row"><div class="impact-label">Trust & reliability ↑</div><div class="impact-track"><div class="impact-fill f4"></div></div></div>
+          </div>
+          <div style="height:18px"></div>
+          <div class="card" style="background:rgba(255,255,255,0.08)">
+            <div class="mid">AI 不取代獸醫</div>
+            <div class="p">它負責日常追蹤、風險分析、前置分流與診後追蹤，讓臨床資源更聚焦、更可信、更高效。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

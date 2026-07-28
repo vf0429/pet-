@@ -96,7 +96,7 @@
 - `frontend/app/merchant/layout.tsx` 在认证后会立刻执行一次 `fetchPendingTasks()`，同时 `usePendingTasks()` mount 时也会立即拉取一次；真实运行中首屏可能出现两次 very-close 请求，前端依赖 `dedupe_key` 窗口去重避免重复 toast。
 - `frontend/store/realtime.ts` 当前 dedupe 仅基于内存 `recentlyShownKeys`，页面刷新会丢失窗口状态；这符合当前契约，但回归时应重点关注“刷新后重复弹 toast”是否被业务接受。
 - `frontend/lib/api.ts` 的 Phase 4 API 没有显式传 `X-Business-Type` header，而是依赖登录态中的 active business 与页面现有流转；如果后续真实请求异常，需要优先复核前端请求头拼装与 rewrite 链路。
-- `backend/petwell.db` 已存在于仓库内；`backend/cmd/server/main.go` 使用 SQLite `petwell.db` 并在启动时 `AutoMigrate`，因此 `idempotency_keys` 可通过 schema smoke test 或人工 sqlite 检查验证。
+- `backend/pawrd.db` 为本地 SQLite 库；`backend/cmd/server/main.go` 使用 SQLite `pawrd.db` 并在启动时 `AutoMigrate`，因此 `idempotency_keys` 可通过 schema smoke test 或人工 sqlite 检查验证。
 
 ## 当前 QA 阻塞/风险
 - 本轮未执行 Playwright，无法确认当前 seed 数据是否稳定覆盖 `sync_failed` / `dead_letter` / `medical_record_pushed` 的可视化路径；相关断言需依赖运行时数据或 route mock。

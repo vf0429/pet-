@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"strconv"
 	"strings"
 	"time"
@@ -54,6 +54,7 @@ type InsurancePolicySnapshot struct {
 // For Phase 3, we return mock coverage data based on existing claim records.
 func GetCoveragePreview(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -175,6 +176,7 @@ type ListClaimsQuery struct {
 // ListInsuranceClaims handles GET /merchant/clinic/insurance/claims
 func ListInsuranceClaims(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -289,6 +291,7 @@ type CreateInsuranceClaimResponse struct {
 // CreateInsuranceClaim handles POST /merchant/clinic/insurance/claims
 func CreateInsuranceClaim(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -378,6 +381,7 @@ type UploadClaimFileResponse struct {
 // UploadClaimFile handles POST /merchant/clinic/insurance/claims/:id/files
 func UploadClaimFile(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})

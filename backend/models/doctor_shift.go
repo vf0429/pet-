@@ -7,9 +7,9 @@ import "time"
 // the system falls back to the tenant's ClinicScheduleTemplate.
 //
 // Three cases:
-//   1. No row       → doctor follows clinic template (open/close times)
-//   2. IsOff = true → doctor is absent; all slots blocked
-//   3. StartTime set → doctor works custom hours that day (e.g. 10:00-15:00)
+//  1. No row       → doctor follows clinic template (open/close times)
+//  2. IsOff = true → doctor is absent; all slots blocked
+//  3. StartTime set → doctor works custom hours that day (e.g. 10:00-15:00)
 type DoctorShift struct {
 	ID        uint      `gorm:"primaryKey"                                                                json:"id"`
 	TenantID  uint      `gorm:"not null;uniqueIndex:idx_doctor_shift_uniq,priority:1;index"               json:"tenant_id"`

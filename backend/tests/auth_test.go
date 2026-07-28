@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"petwell-merchant-backend/handlers"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/handlers"
+	"pawrd-merchant-backend/models"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +24,8 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	// Migrate models
 	if err := db.AutoMigrate(
 		&models.Tenant{},
+		&models.TenantRoutingConfig{},
+		&models.DatabaseTarget{},
 		&models.MerchantUser{},
 		&models.MerchantSession{},
 	); err != nil {
@@ -33,7 +35,8 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func seedTestData(db *gorm.DB) {
+func seedTestData(t *testing.T, db *gorm.DB) {
+	t.Helper()
 	passwordHash, _ := bcrypt.GenerateFromPassword([]byte("Test123!"), bcrypt.DefaultCost)
 
 	// Create Tenant 1: Happy Paws (type=both)
@@ -43,6 +46,7 @@ func seedTestData(db *gorm.DB) {
 		Status: models.TenantStatusActive,
 	}
 	db.Create(&tenant1)
+	mustCreateTenantRoutingConfig(t, db, tenant1.ID, models.SubscriptionTierOnboarding, models.TenancyModeSharedRLS, "", "")
 
 	users1 := []models.MerchantUser{
 		{
@@ -77,11 +81,12 @@ func seedTestData(db *gorm.DB) {
 		Status: models.TenantStatusActive,
 	}
 	db.Create(&tenant2)
+	mustCreateTenantRoutingConfig(t, db, tenant2.ID, models.SubscriptionTierOnboarding, models.TenancyModeSharedRLS, "", "")
 }
 
 func TestLogin_Success(t *testing.T) {
 	db := setupTestDB(t)
-	seedTestData(db)
+	seedTestData(t, db)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -127,7 +132,7 @@ func TestLogin_Success(t *testing.T) {
 
 func TestLogin_InvalidCredentials(t *testing.T) {
 	db := setupTestDB(t)
-	seedTestData(db)
+	seedTestData(t, db)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -161,7 +166,7 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 
 func TestLogin_NonExistentUser(t *testing.T) {
 	db := setupTestDB(t)
-	seedTestData(db)
+	seedTestData(t, db)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -195,7 +200,7 @@ func TestLogin_NonExistentUser(t *testing.T) {
 
 func TestLogin_MissingEmail(t *testing.T) {
 	db := setupTestDB(t)
-	seedTestData(db)
+	seedTestData(t, db)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

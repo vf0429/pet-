@@ -3,8 +3,8 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,19 +14,20 @@ import (
 // ─── Create Appointment ────────────────────────────────────────────────────
 
 type CreateAppointmentRequest struct {
-	PetName       string  `json:"pet_name" binding:"required"`
-	PetOwnerName  string  `json:"pet_owner_name" binding:"required"`
-	PetOwnerPhone string  `json:"pet_owner_phone"`
-	VisitType     string  `json:"visit_type" binding:"required"`
-	DoctorID      uint    `json:"doctor_id" binding:"required"`
-	ScheduledAt   string  `json:"scheduled_at" binding:"required"` // RFC3339
-	Notes         string  `json:"notes"`
-	PatientID     *uint   `json:"patient_id"`
-	ClientID      *uint   `json:"client_id"`
+	PetName       string `json:"pet_name" binding:"required"`
+	PetOwnerName  string `json:"pet_owner_name" binding:"required"`
+	PetOwnerPhone string `json:"pet_owner_phone"`
+	VisitType     string `json:"visit_type" binding:"required"`
+	DoctorID      uint   `json:"doctor_id" binding:"required"`
+	ScheduledAt   string `json:"scheduled_at" binding:"required"` // RFC3339
+	Notes         string `json:"notes"`
+	PatientID     *uint  `json:"patient_id"`
+	ClientID      *uint  `json:"client_id"`
 }
 
 func CreateClinicAppointment(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "unauthorized"})
@@ -202,6 +203,7 @@ type CreatePatientRequest struct {
 
 func CreateClinicPatient(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "unauthorized"})
@@ -284,14 +286,14 @@ func CreateClinicPatient(db *gorm.DB) gin.HandlerFunc {
 			"code":    0,
 			"message": "ok",
 			"data": gin.H{
-				"id":           patient.ID,
-				"name":         patient.Name,
-				"gender":       patient.Gender,
-				"weight":       patient.Weight,
-				"weight_unit":  patient.WeightUnit,
-				"microchip":    patient.Microchip,
-				"client_id":    clientID,
-				"created_at":   patient.CreatedAt.Format(time.RFC3339),
+				"id":          patient.ID,
+				"name":        patient.Name,
+				"gender":      patient.Gender,
+				"weight":      patient.Weight,
+				"weight_unit": patient.WeightUnit,
+				"microchip":   patient.Microchip,
+				"client_id":   clientID,
+				"created_at":  patient.CreatedAt.Format(time.RFC3339),
 			},
 		})
 	}
@@ -309,6 +311,7 @@ type CreateReminderRequest struct {
 
 func CreateClinicReminder(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "unauthorized"})
@@ -374,6 +377,7 @@ func CreateClinicReminder(db *gorm.DB) gin.HandlerFunc {
 
 func ListClinicDoctors(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "unauthorized"})

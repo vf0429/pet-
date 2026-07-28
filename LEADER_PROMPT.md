@@ -20,7 +20,7 @@
 | 项目路径 | `/Users/vfzzz/Desktop/petwell-merchant` |
 | 前端 | Next.js 15 + React 19 + Zustand 5 + Tailwind 3（Portal 本地端口 3500） |
 | 后端 | Go 1.22 + Gin 1.10 + GORM 1.25（端口 8080） |
-| 数据库 | SQLite（petwell.db），GORM AutoMigrate |
+| 数据库 | SQLite（pawrd.db），GORM AutoMigrate |
 | 认证 | Session-based，Header: `X-Session-ID` + `X-Business-Type` |
 | 启动 | `./dev.sh` 同时启动前后端 |
 | 测试账号 | owner@happypaws.com / Test123! |

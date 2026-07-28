@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"strconv"
 	"strings"
 	"time"
@@ -136,6 +136,7 @@ type SyncQueueRef struct {
 // ListShopOrders handles GET /merchant/shop/orders
 func ListShopOrders(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -260,6 +261,7 @@ func ListShopOrders(db *gorm.DB) gin.HandlerFunc {
 // GetShopOrderDetail handles GET /merchant/shop/orders/:id
 func GetShopOrderDetail(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -351,6 +353,7 @@ func GetShopOrderDetail(db *gorm.DB) gin.HandlerFunc {
 // UpdateShopOrderStatus handles PATCH /merchant/shop/orders/:id/status
 func UpdateShopOrderStatus(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})

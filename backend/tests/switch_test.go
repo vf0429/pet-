@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"petwell-merchant-backend/handlers"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/handlers"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"testing"
 	"time"
 
@@ -26,6 +26,8 @@ func setupSwitchTestDB(t *testing.T) (*gorm.DB, *models.MerchantUser, *models.Te
 
 	if err := db.AutoMigrate(
 		&models.Tenant{},
+		&models.TenantRoutingConfig{},
+		&models.DatabaseTarget{},
 		&models.MerchantUser{},
 		&models.MerchantSession{},
 	); err != nil {
@@ -41,6 +43,7 @@ func setupSwitchTestDB(t *testing.T) (*gorm.DB, *models.MerchantUser, *models.Te
 		Status: models.TenantStatusActive,
 	}
 	db.Create(&tenant)
+	mustCreateTenantRoutingConfig(t, db, tenant.ID, models.SubscriptionTierOnboarding, models.TenancyModeSharedRLS, "", "")
 
 	// Create switchable user
 	user := models.MerchantUser{
@@ -145,6 +148,8 @@ func TestSwitchBusiness_SwitchNotAllowed(t *testing.T) {
 
 	if err := db.AutoMigrate(
 		&models.Tenant{},
+		&models.TenantRoutingConfig{},
+		&models.DatabaseTarget{},
 		&models.MerchantUser{},
 		&models.MerchantSession{},
 	); err != nil {
@@ -160,6 +165,7 @@ func TestSwitchBusiness_SwitchNotAllowed(t *testing.T) {
 		Status: models.TenantStatusActive,
 	}
 	db.Create(&tenant)
+	mustCreateTenantRoutingConfig(t, db, tenant.ID, models.SubscriptionTierOnboarding, models.TenancyModeSharedRLS, "", "")
 
 	// Create non-switchable user
 	user := models.MerchantUser{
@@ -216,6 +222,8 @@ func TestSwitchBusiness_BusinessScopeForbidden_SingleTypeTenant(t *testing.T) {
 
 	if err := db.AutoMigrate(
 		&models.Tenant{},
+		&models.TenantRoutingConfig{},
+		&models.DatabaseTarget{},
 		&models.MerchantUser{},
 		&models.MerchantSession{},
 	); err != nil {
@@ -231,6 +239,7 @@ func TestSwitchBusiness_BusinessScopeForbidden_SingleTypeTenant(t *testing.T) {
 		Status: models.TenantStatusActive,
 	}
 	db.Create(&tenant)
+	mustCreateTenantRoutingConfig(t, db, tenant.ID, models.SubscriptionTierOnboarding, models.TenancyModeSharedRLS, "", "")
 
 	// Create switchable user on shop-only tenant
 	user := models.MerchantUser{
@@ -321,6 +330,8 @@ func TestSwitchBusiness_SessionExpired(t *testing.T) {
 
 	if err := db.AutoMigrate(
 		&models.Tenant{},
+		&models.TenantRoutingConfig{},
+		&models.DatabaseTarget{},
 		&models.MerchantUser{},
 		&models.MerchantSession{},
 	); err != nil {
@@ -335,6 +346,7 @@ func TestSwitchBusiness_SessionExpired(t *testing.T) {
 		Status: models.TenantStatusActive,
 	}
 	db.Create(&tenant)
+	mustCreateTenantRoutingConfig(t, db, tenant.ID, models.SubscriptionTierOnboarding, models.TenancyModeSharedRLS, "", "")
 
 	user := models.MerchantUser{
 		TenantID:           tenant.ID,

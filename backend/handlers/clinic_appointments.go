@@ -69,6 +69,7 @@ type MatrixDoctor struct {
 // ListClinicAppointments handles GET /merchant/clinic/appointments
 func ListClinicAppointments(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -283,6 +284,7 @@ type UpdateAppointmentStatusRequest struct {
 // UpdateClinicAppointmentStatus handles PATCH /merchant/clinic/appointments/:id/status
 func UpdateClinicAppointmentStatus(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})

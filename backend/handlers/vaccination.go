@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"pawrd-merchant-backend/middleware"
 	"pawrd-merchant-backend/models"
 	"strings"
 	"time"
@@ -117,6 +118,7 @@ func bookingResponseFromModel(db *gorm.DB, facade models.VaccinationBookingFacad
 // GetVaccinationAvailability handles GET /app/v1/vaccinations/availability
 func GetVaccinationAvailability(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		projectID, ok := appProjectID(c)
 		if !ok {
 			facadeErr(c, http.StatusUnauthorized, 40102, "invalid app key")
@@ -220,6 +222,7 @@ func GetVaccinationAvailability(db *gorm.DB) gin.HandlerFunc {
 // CreateVaccinationBooking handles POST /app/v1/vaccinations/bookings
 func CreateVaccinationBooking(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		projectID, ok := appProjectID(c)
 		if !ok {
 			facadeErr(c, http.StatusUnauthorized, 40102, "invalid app key")
@@ -361,6 +364,7 @@ func CreateVaccinationBooking(db *gorm.DB) gin.HandlerFunc {
 // GetVaccinationBooking handles GET /app/v1/vaccinations/bookings/:external_booking_id
 func GetVaccinationBooking(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		projectID, ok := appProjectID(c)
 		if !ok {
 			facadeErr(c, http.StatusUnauthorized, 40102, "invalid app key")
@@ -398,6 +402,7 @@ func GetVaccinationBooking(db *gorm.DB) gin.HandlerFunc {
 // CancelVaccinationBooking handles POST /app/v1/vaccinations/bookings/:external_booking_id/cancel
 func CancelVaccinationBooking(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		projectID, ok := appProjectID(c)
 		if !ok {
 			facadeErr(c, http.StatusUnauthorized, 40102, "invalid app key")

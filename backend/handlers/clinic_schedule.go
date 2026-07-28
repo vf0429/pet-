@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -87,6 +87,7 @@ func resolveWorkingHours(
 
 func GetDoctorAvailability(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "unauthorized"})
@@ -208,6 +209,7 @@ func GetDoctorAvailability(db *gorm.DB) gin.HandlerFunc {
 
 func GetWeeklySchedule(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "unauthorized"})
@@ -268,12 +270,12 @@ func GetWeeklySchedule(db *gorm.DB) gin.HandlerFunc {
 
 		// Build response
 		type DayInfo struct {
-			IsWorking  bool   `json:"is_working"`
-			StartTime  string `json:"start_time"`
-			EndTime    string `json:"end_time"`
-			IsCustom   bool   `json:"is_custom"`   // true = doctor has a shift override
-			Note       string `json:"note,omitempty"`
-			ShiftID    *uint  `json:"shift_id,omitempty"`
+			IsWorking bool   `json:"is_working"`
+			StartTime string `json:"start_time"`
+			EndTime   string `json:"end_time"`
+			IsCustom  bool   `json:"is_custom"` // true = doctor has a shift override
+			Note      string `json:"note,omitempty"`
+			ShiftID   *uint  `json:"shift_id,omitempty"`
 		}
 
 		// schedule: map[string]map[string]DayInfo  (doctorID_str → date → DayInfo)
@@ -349,6 +351,7 @@ type UpsertDoctorShiftRequest struct {
 
 func UpsertDoctorShift(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "unauthorized"})
@@ -422,14 +425,14 @@ func UpsertDoctorShift(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"code": 0, "message": "ok",
 			"data": gin.H{
-				"id":         shift.ID,
-				"doctor_id":  shift.DoctorID,
+				"id":          shift.ID,
+				"doctor_id":   shift.DoctorID,
 				"doctor_name": doctor.Name,
-				"date":       req.Date,
-				"is_off":     shift.IsOff,
-				"start_time": shift.StartTime,
-				"end_time":   shift.EndTime,
-				"note":       shift.Note,
+				"date":        req.Date,
+				"is_off":      shift.IsOff,
+				"start_time":  shift.StartTime,
+				"end_time":    shift.EndTime,
+				"note":        shift.Note,
 			},
 		})
 	}
@@ -441,6 +444,7 @@ func UpsertDoctorShift(db *gorm.DB) gin.HandlerFunc {
 
 func DeleteDoctorShift(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "unauthorized"})
@@ -474,6 +478,7 @@ func DeleteDoctorShift(db *gorm.DB) gin.HandlerFunc {
 
 func GetScheduleTemplates(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "unauthorized"})
@@ -518,6 +523,7 @@ type UpdateScheduleTemplateRequest struct {
 
 func UpdateScheduleTemplate(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "unauthorized"})

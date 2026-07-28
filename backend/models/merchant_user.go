@@ -31,18 +31,18 @@ const (
 
 // MerchantUser represents a user in the merchant system
 type MerchantUser struct {
-	ID                 uint         `gorm:"primaryKey" json:"id"`
-	TenantID           uint         `gorm:"not null;index" json:"tenant_id"`
-	Email              string       `gorm:"size:255;not null;uniqueIndex" json:"email"`
-	PasswordHash       string       `gorm:"size:255;not null" json:"-"`
-	Name               string       `gorm:"size:128;not null" json:"name"`
-	Role               UserRole     `gorm:"size:32;not null;index" json:"role"`
-	ActiveBusinessType BusinessType `gorm:"size:16;not null;index" json:"active_business_type"`
-	CanSwitch          bool         `gorm:"not null;default:false;index" json:"can_switch"`
-	Status                  UserStatus `gorm:"size:16;not null;default:'active';index" json:"status"`
-	ExternalEzyvetContactID *int64     `gorm:"uniqueIndex:idx_merchant_user_ezyvet" json:"external_ezyvet_contact_id"`
-	CreatedAt               time.Time  `json:"created_at"`
-	UpdatedAt          time.Time    `json:"updated_at"`
+	ID                      uint         `gorm:"primaryKey" json:"id"`
+	TenantID                uint         `gorm:"not null;index" json:"tenant_id"`
+	Email                   string       `gorm:"size:255;not null;uniqueIndex" json:"email"`
+	PasswordHash            string       `gorm:"size:255;not null" json:"-"`
+	Name                    string       `gorm:"size:128;not null" json:"name"`
+	Role                    UserRole     `gorm:"size:32;not null;index" json:"role"`
+	ActiveBusinessType      BusinessType `gorm:"size:16;not null;index" json:"active_business_type"`
+	CanSwitch               bool         `gorm:"not null;default:false;index" json:"can_switch"`
+	Status                  UserStatus   `gorm:"size:16;not null;default:'active';index" json:"status"`
+	ExternalEzyvetContactID *int64       `gorm:"uniqueIndex:idx_merchant_user_ezyvet" json:"external_ezyvet_contact_id"`
+	CreatedAt               time.Time    `json:"created_at"`
+	UpdatedAt               time.Time    `json:"updated_at"`
 
 	Tenant   Tenant            `gorm:"foreignKey:TenantID"`
 	Sessions []MerchantSession `gorm:"foreignKey:UserID"`

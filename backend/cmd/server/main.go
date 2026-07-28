@@ -6,11 +6,11 @@ import (
 	"log"
 	"math/rand"
 	"os"
-	"petwell-merchant-backend/handlers"
-	"petwell-merchant-backend/jobs"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/migrations"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/handlers"
+	"pawrd-merchant-backend/jobs"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/migrations"
+	"pawrd-merchant-backend/models"
 	"strings"
 	"time"
 
@@ -21,6 +21,17 @@ import (
 	"gorm.io/gorm"
 )
 
+func shouldSeedDemoData(databaseURL, allowDemoSeed string) bool {
+	if strings.EqualFold(strings.TrimSpace(allowDemoSeed), "true") {
+		return true
+	}
+	return strings.TrimSpace(databaseURL) == ""
+}
+
+func demoSeedEnabledFromEnv() bool {
+	return shouldSeedDemoData(os.Getenv("DATABASE_URL"), os.Getenv("ALLOW_DEMO_SEED"))
+}
+
 func main() {
 	// Initialize database
 	// Use DATABASE_URL env var for PostgreSQL in production; fallback to SQLite for local dev
@@ -30,7 +41,7 @@ func main() {
 		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 		log.Println("Using PostgreSQL database")
 	} else {
-		db, err = gorm.Open(sqlite.Open("petwell.db"), &gorm.Config{})
+		db, err = gorm.Open(sqlite.Open("pawrd.db"), &gorm.Config{})
 		log.Println("DATABASE_URL not set, using SQLite (dev mode)")
 	}
 	if err != nil {
@@ -40,6 +51,8 @@ func main() {
 	// Auto migrate models
 	if err := db.AutoMigrate(
 		&models.Tenant{},
+		&models.TenantRoutingConfig{},
+		&models.DatabaseTarget{},
 		&models.MerchantUser{},
 		&models.MerchantSession{},
 		&models.ShopProduct{},
@@ -77,12 +90,17 @@ func main() {
 		log.Fatal("Failed to run analytics index migration:", err)
 	}
 
-	// Seed initial data
-	seedData(db)
-	seedClinicScheduleTemplates(db)
+	// Seed local/demo data only when explicitly allowed.
+	if demoSeedEnabledFromEnv() {
+		seedData(db)
+		seedClinicScheduleTemplates(db)
+	} else {
+		log.Println("ALLOW_DEMO_SEED not enabled; skipping demo seed data for hosted database")
+	}
 
 	// Setup Gin router
 	r := gin.Default()
+	r.Use(middleware.CORSMiddleware())
 
 	// API group /v1/merchant
 	merchant := r.Group("/v1/merchant")
@@ -96,6 +114,7 @@ func main() {
 	// Protected routes (authentication required)
 	protected := merchant.Group("")
 	protected.Use(middleware.MerchantAuthMiddleware(db))
+	protected.Use(middleware.TenantScopedDBMiddleware(db))
 	{
 		protected.GET("/me", handlers.GetMe(db))
 		protected.PATCH("/me/switch", handlers.SwitchBusiness(db))
@@ -207,6 +226,7 @@ func main() {
 	// App-facing Facade — consumer App only (app-key auth, NOT merchant session)
 	appV1 := r.Group("/app/v1")
 	appV1.Use(middleware.AppKeyAuthMiddleware(db))
+	appV1.Use(middleware.TenantScopedDBMiddleware(db))
 	{
 		vaccGroup := appV1.Group("/vaccinations")
 		{
@@ -217,9 +237,14 @@ func main() {
 		}
 	}
 
-	log.Println("Server starting on :8080")
+	port := os.Getenv("PORT")
+	if strings.TrimSpace(port) == "" {
+		port = "8080"
+	}
+
+	log.Printf("Server starting on :%s", port)
 	jobs.StartSyncConsumer(db, 30*time.Second)
-	if err := r.Run(":8080"); err != nil {
+	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
 }
@@ -229,6 +254,7 @@ func seedData(db *gorm.DB) {
 	var count int64
 	db.Model(&models.Tenant{}).Count(&count)
 	if count > 0 {
+		ensureExistingTenantRoutingConfigs(db)
 		// Still run shop seed if tenants exist but shop data doesn't
 		seedShopData(db)
 		seedClinicData(db)
@@ -244,6 +270,7 @@ func seedData(db *gorm.DB) {
 		Status: models.TenantStatusActive,
 	}
 	db.Create(&tenant1)
+	ensureSeedTenantRoutingConfig(db, tenant1.ID, models.SubscriptionTierOnboarding, models.TenancyModeSharedRLS, "", "")
 
 	// Create users for Tenant 1
 	passwordHash, _ := bcrypt.GenerateFromPassword([]byte("Test123!"), bcrypt.DefaultCost)
@@ -291,6 +318,7 @@ func seedData(db *gorm.DB) {
 		Status: models.TenantStatusActive,
 	}
 	db.Create(&tenant2)
+	ensureSeedTenantRoutingConfig(db, tenant2.ID, models.SubscriptionTierOnboarding, models.TenancyModeSharedRLS, "", "")
 
 	// Create users for Tenant 2
 	users2 := []models.MerchantUser{
@@ -1063,6 +1091,48 @@ func seedPhase4AData(db *gorm.DB) {
 	log.Println("Phase 4A seed data created successfully")
 }
 
+func ensureSeedTenantRoutingConfig(db *gorm.DB, tenantID uint, tier models.SubscriptionTier, mode models.TenancyMode, schemaName, databaseKey string) {
+	var existing models.TenantRoutingConfig
+	if err := db.Where("tenant_id = ?", tenantID).First(&existing).Error; err == nil {
+		return
+	}
+
+	config := models.TenantRoutingConfig{
+		TenantID:         tenantID,
+		SubscriptionTier: tier,
+		TenancyMode:      mode,
+		SchemaName:       schemaName,
+		DatabaseKey:      databaseKey,
+		Status:           models.TenantRoutingStatusActive,
+	}
+	if err := config.Validate(); err != nil {
+		log.Printf("tenant routing seed skipped for tenant %d: %v", tenantID, err)
+		return
+	}
+	if err := db.Create(&config).Error; err != nil {
+		log.Printf("tenant routing seed failed for tenant %d: %v", tenantID, err)
+	}
+}
+
+func ensureExistingTenantRoutingConfigs(db *gorm.DB) {
+	var tenants []models.Tenant
+	if err := db.Select("id").Find(&tenants).Error; err != nil {
+		log.Printf("tenant routing backfill skipped: failed to load tenants: %v", err)
+		return
+	}
+
+	for _, tenant := range tenants {
+		ensureSeedTenantRoutingConfig(
+			db,
+			tenant.ID,
+			models.SubscriptionTierOnboarding,
+			models.TenancyModeSharedRLS,
+			"",
+			"",
+		)
+	}
+}
+
 // seedClinicPatientsAndClients seeds clinic_clients, clinic_patients, and health_reminders
 // from existing appointment data. Idempotent — skips if any clients already exist.
 func seedClinicPatientsAndClients(db *gorm.DB) {
@@ -1159,14 +1229,14 @@ func seedClinicPatientsAndClients(db *gorm.DB) {
 		dob := now.AddDate(-(2 + i%8), -(i % 12), 0)
 		weight := 3.5 + float64(i%15)*0.7
 		patient := &models.ClinicPatient{
-			TenantID:   row.TenantID,
-			ClientID:   client.ID,
-			Name:       row.PetName,
-			Gender:     gender,
+			TenantID:    row.TenantID,
+			ClientID:    client.ID,
+			Name:        row.PetName,
+			Gender:      gender,
 			DateOfBirth: &dob,
-			Weight:     weight,
-			WeightUnit: "kg",
-			Active:     true,
+			Weight:      weight,
+			WeightUnit:  "kg",
+			Active:      true,
 		}
 		// Set species/breed via IDs if they exist, else store names in notes
 		var sp models.AnimalSpecies

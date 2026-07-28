@@ -51,6 +51,51 @@ interface TreatmentForm {
   notes: string
 }
 
+function buildAiSummaryDraft(params: {
+  petName: string
+  chiefComplaint?: string
+  diagnoses: DiagnosisForm[]
+  treatments: TreatmentForm[]
+  prescriptions: PrescriptionForm[]
+  generalMedicationNotes?: string
+}) {
+  const sections = [
+    params.chiefComplaint?.trim()
+      ? `主訴：${params.chiefComplaint.trim()}`
+      : '',
+    params.diagnoses.length > 0
+      ? `診斷：${params.diagnoses
+          .map((diag) => diag.name.trim())
+          .filter(Boolean)
+          .join('、')}`
+      : '',
+    params.treatments.length > 0
+      ? `處置：${params.treatments
+          .map((treat) => treat.name.trim())
+          .filter(Boolean)
+          .join('、')}`
+      : '',
+    params.prescriptions.length > 0
+      ? `用藥：${params.prescriptions
+          .map((presc) => {
+            const parts = [presc.drugName.trim(), presc.dosage.trim(), presc.frequency.trim()].filter(Boolean)
+            return parts.join(' ')
+          })
+          .filter(Boolean)
+          .join('；')}`
+      : '',
+    params.generalMedicationNotes?.trim()
+      ? `補充醫囑：${params.generalMedicationNotes.trim()}`
+      : '',
+  ].filter(Boolean)
+
+  if (sections.length === 0) {
+    return `${params.petName} 本次就診已完成，請醫生補充 AI 摘要內容。`
+  }
+
+  return sections.join('\n')
+}
+
 export default function VisitDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -98,6 +143,9 @@ export default function VisitDetailPage() {
         temperature: visit.temperature,
         heartRate: visit.heartRate,
         respiratoryRate: visit.respiratoryRate,
+        aiSummary: visit.aiSummary,
+        careNotes: visit.careNotes,
+        generalMedicationNotes: visit.generalMedicationNotes,
       })
       setDiagnoses(
         visit.diagnoses.map((d) => ({
@@ -145,17 +193,27 @@ export default function VisitDetailPage() {
 
   // Advance to the next step in the standard flow (e.g. in_progress → diagnosed)
   const handleAdvanceStatus = async (targetStatus: VisitStatus) => {
+    const aiSummaryDraft =
+      targetStatus === 'closed' && !(formState.aiSummary || '').trim()
+        ? buildAiSummaryDraft({
+            petName: visit?.petName || '',
+            chiefComplaint: formState.chiefComplaint,
+            diagnoses,
+            treatments,
+            prescriptions,
+            generalMedicationNotes: formState.generalMedicationNotes,
+          })
+        : formState.aiSummary
+
     try {
       await saveVisit(visitId, {
         ...formState,
+        aiSummary: aiSummaryDraft,
         diagnoses,
         prescriptions,
         treatments,
         targetStatus,
       })
-      if (targetStatus === 'closed') {
-        router.push('/merchant/clinic/appointments')
-      }
     } catch {
       alert(pick('Action failed. Please try again.', '操作失敗，請重試'))
     }
@@ -164,11 +222,25 @@ export default function VisitDetailPage() {
   // Skip remaining steps and close the visit directly
   const handleDirectClose = async () => {
     if (!confirm(pick('Skip the remaining steps and close this visit now?\n\nThe appointment will also be marked as completed.', '跳過剩餘步驟，直接結案此次就診？\n\n預約將同步標記為已完成。'))) return
+    const aiSummaryDraft =
+      (formState.aiSummary || '').trim() ||
+      buildAiSummaryDraft({
+        petName: visit?.petName || '',
+        chiefComplaint: formState.chiefComplaint,
+        diagnoses,
+        treatments,
+        prescriptions,
+        generalMedicationNotes: formState.generalMedicationNotes,
+      })
     try {
       await saveVisit(visitId, {
+        ...formState,
+        aiSummary: aiSummaryDraft,
+        diagnoses,
+        prescriptions,
+        treatments,
         targetStatus: 'closed',
       })
-      router.push('/merchant/clinic/appointments')
     } catch {
       alert(pick('Closing the case failed. Please try again.', '結案失敗，請重試'))
     }
@@ -176,10 +248,20 @@ export default function VisitDetailPage() {
 
   // Push closed medical record to the pet owner's App
   const handlePushToApp = async () => {
+    const aiSummary = (formState.aiSummary || '').trim()
+    if (!aiSummary) {
+      alert(pick('Please complete the AI summary before pushing to the mobile app.', '請先完成 AI 摘要，再推送到手機端。'))
+      return
+    }
     if (!confirm(pick("Push this visit record to the pet owner's app?", '將此次就診紀錄推送到寵物主人的 App？'))) return
     try {
+      await saveVisit(visitId, {
+        aiSummary,
+        careNotes: formState.careNotes || '',
+      })
       await pushToApp(visitId)
-      alert(pick('Successfully pushed to the app', '已成功推送到 App'))
+      alert(pick('Successfully pushed to the mobile app', '已成功推送到手機端'))
+      router.push('/merchant/clinic/appointments')
     } catch {
       alert(pick('Push failed. Please try again.', '推送失敗，請重試'))
     }
@@ -738,6 +820,56 @@ export default function VisitDetailPage() {
                   )}
                 </div>
               )}
+
+              {visit.status === 'closed' && (
+                <div className="mt-8 rounded-2xl border border-sky-100 bg-sky-50/60 p-5">
+                  <div className="mb-4">
+                    <h3 className="text-base font-semibold text-slate-900">
+                      {pick('Final review before pushing to the mobile app', '推送到手機端前的最終確認')}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {pick(
+                        'Review and edit the AI-generated visit summary, then add any care notes for the pet owner.',
+                        '請先檢查並編輯 AI 生成的就診摘要，再補充給寵物主人的注意事項。'
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-900">
+                        {pick('AI summary (editable)', 'AI 摘要（可編輯）')}
+                      </label>
+                      <textarea
+                        value={formState.aiSummary || ''}
+                        onChange={(e) => setFormState({ ...formState, aiSummary: e.target.value })}
+                        rows={8}
+                        className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        placeholder={pick(
+                          'AI summary generated from the consultation recording will appear here for doctor review.',
+                          '診療錄音生成的 AI 摘要會顯示於此，供醫生審核與編輯。'
+                        )}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-900">
+                        {pick('Care notes / precautions', '注意事項 / 醫囑')}
+                      </label>
+                      <textarea
+                        value={formState.careNotes || ''}
+                        onChange={(e) => setFormState({ ...formState, careNotes: e.target.value })}
+                        rows={5}
+                        className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        placeholder={pick(
+                          'Add feeding, medication, wound care, observation, or revisit instructions for the pet owner.',
+                          '請填寫餵食、用藥、傷口照護、觀察重點或覆診提醒等內容。'
+                        )}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -753,15 +885,17 @@ export default function VisitDetailPage() {
           {pick('Back', '返回')}
         </button>
 
-        {visit.status !== 'closed' && (
-          <button
-            onClick={handleSaveDraft}
-            disabled={isSaving}
-            className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50"
-          >
-            {isSaving ? pick('Saving...', '保存中...') : pick('Save draft', '保存草稿')}
-          </button>
-        )}
+        <button
+          onClick={handleSaveDraft}
+          disabled={isSaving}
+          className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+        >
+          {isSaving
+            ? pick('Saving...', '保存中...')
+            : visit.status === 'closed'
+              ? pick('Save final review', '保存結案內容')
+              : pick('Save draft', '保存草稿')}
+        </button>
 
         {/* Right: primary actions */}
         <div className="ml-auto flex items-center gap-3">
@@ -794,7 +928,7 @@ export default function VisitDetailPage() {
               disabled={isPushing}
               className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
             >
-              {isPushing ? pick('Pushing...', '推送中...') : visit.pushedAt ? pick('Push to app again', '重新推送到 App') : pick('Push to app', '推送到 App')}
+              {isPushing ? pick('Pushing...', '推送中...') : visit.pushedAt ? pick('Push to mobile app again', '重新推送到手機端') : pick('Push to mobile app', '推送到手機端')}
             </button>
           )}
         </div>

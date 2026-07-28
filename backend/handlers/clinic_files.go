@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"strings"
 	"time"
 
@@ -44,6 +44,7 @@ type UploadVisitFileResponse struct {
 // UploadVisitFile handles POST /merchant/clinic/visits/:id/files
 func UploadVisitFile(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})

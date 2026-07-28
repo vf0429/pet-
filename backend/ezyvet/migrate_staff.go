@@ -6,7 +6,7 @@ import (
 	"log"
 	"strings"
 
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/models"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"

@@ -28,6 +28,8 @@ func setupVaccinationSyncTestDB(t *testing.T) (*gorm.DB, string, *models.Tenant,
 
 	if err := db.AutoMigrate(
 		&models.Tenant{},
+		&models.TenantRoutingConfig{},
+		&models.DatabaseTarget{},
 		&models.MerchantUser{},
 		&models.MerchantSession{},
 		&models.MerchantProject{},
@@ -49,6 +51,7 @@ func setupVaccinationSyncTestDB(t *testing.T) (*gorm.DB, string, *models.Tenant,
 	if err := db.Create(&tenant).Error; err != nil {
 		t.Fatalf("Failed to create tenant: %v", err)
 	}
+	mustCreateTenantRoutingConfig(t, db, tenant.ID, models.SubscriptionTierOnboarding, models.TenancyModeSharedRLS, "", "")
 
 	ownerPasswordHash, _ := bcrypt.GenerateFromPassword([]byte("Test123!"), bcrypt.DefaultCost)
 	owner := models.MerchantUser{

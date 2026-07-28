@@ -1,4 +1,4 @@
-module petwell-merchant-backend
+module pawrd-merchant-backend
 
 go 1.22
 

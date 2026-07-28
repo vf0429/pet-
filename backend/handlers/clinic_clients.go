@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -12,14 +12,14 @@ import (
 
 // ClinicClientListItem is a single row in the clients list response.
 type ClinicClientListItem struct {
-	ID             uint   `json:"id"`
-	FirstName      string `json:"first_name"`
-	LastName       string `json:"last_name"`
-	Phone          string `json:"phone"`
-	Email          string `json:"email"`
-	Active         bool   `json:"active"`
-	PatientCount   int64  `json:"patient_count"`
-	CreatedAt      string `json:"created_at"`
+	ID           uint   `json:"id"`
+	FirstName    string `json:"first_name"`
+	LastName     string `json:"last_name"`
+	Phone        string `json:"phone"`
+	Email        string `json:"email"`
+	Active       bool   `json:"active"`
+	PatientCount int64  `json:"patient_count"`
+	CreatedAt    string `json:"created_at"`
 }
 
 // ListClinicClientsQuery holds query params for GET /clinic/clients.
@@ -32,6 +32,7 @@ type ListClinicClientsQuery struct {
 // ListClinicClients handles GET /v1/merchant/clinic/clients
 func ListClinicClients(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})
@@ -114,6 +115,7 @@ type ClinicClientPatientItem struct {
 // GetClinicClientDetail handles GET /v1/merchant/clinic/clients/:id
 func GetClinicClientDetail(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		db = middleware.GetTenantDB(c, db)
 		authCtx, ok := middleware.GetAuthContext(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 20001, "data": nil, "message": "X-Session-ID header is required"})

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"petwell-merchant-backend/handlers"
-	"petwell-merchant-backend/middleware"
-	"petwell-merchant-backend/models"
+	"pawrd-merchant-backend/handlers"
+	"pawrd-merchant-backend/middleware"
+	"pawrd-merchant-backend/models"
 	"testing"
 	"time"
 
@@ -25,6 +25,8 @@ func setupAuthTestDB(t *testing.T) (*gorm.DB, *models.MerchantUser, *models.Tena
 
 	if err := db.AutoMigrate(
 		&models.Tenant{},
+		&models.TenantRoutingConfig{},
+		&models.DatabaseTarget{},
 		&models.MerchantUser{},
 		&models.MerchantSession{},
 	); err != nil {
@@ -40,6 +42,7 @@ func setupAuthTestDB(t *testing.T) (*gorm.DB, *models.MerchantUser, *models.Tena
 		Status: models.TenantStatusActive,
 	}
 	db.Create(&tenant)
+	mustCreateTenantRoutingConfig(t, db, tenant.ID, models.SubscriptionTierOnboarding, models.TenancyModeSharedRLS, "", "")
 
 	// Create user
 	user := models.MerchantUser{
@@ -272,5 +275,61 @@ func TestGetMe_BusinessScopeForbidden(t *testing.T) {
 
 	if response.Error != "business_scope_forbidden" {
 		t.Errorf("Expected error business_scope_forbidden, got %s", response.Error)
+	}
+}
+
+func TestGetMe_TenantRoutingMissingFailsClosed(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("Failed to connect to test database: %v", err)
+	}
+
+	if err := db.AutoMigrate(
+		&models.Tenant{},
+		&models.TenantRoutingConfig{},
+		&models.DatabaseTarget{},
+		&models.MerchantUser{},
+		&models.MerchantSession{},
+	); err != nil {
+		t.Fatalf("Failed to migrate test database: %v", err)
+	}
+
+	passwordHash, _ := bcrypt.GenerateFromPassword([]byte("Test123!"), bcrypt.DefaultCost)
+	tenant := models.Tenant{Name: "No Routing", Type: models.TenantTypeBoth, Status: models.TenantStatusActive}
+	db.Create(&tenant)
+	user := models.MerchantUser{
+		TenantID:           tenant.ID,
+		Email:              "owner@norouting.com",
+		PasswordHash:       string(passwordHash),
+		Name:               "Owner",
+		Role:               models.UserRoleOwner,
+		ActiveBusinessType: models.BusinessTypeShop,
+		CanSwitch:          true,
+		Status:             models.UserStatusActive,
+	}
+	db.Create(&user)
+	session := createTestSession(db, user.ID, tenant.ID)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(middleware.MerchantAuthMiddleware(db))
+	r.GET("/merchant/me", handlers.GetMe(db))
+
+	req, _ := http.NewRequest("GET", "/merchant/me", nil)
+	req.Header.Set("X-Session-ID", session.ID)
+	req.Header.Set("X-Business-Type", "shop")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("Expected status 503, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var response handlers.ErrorResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+	if response.Error != "tenant_routing_unavailable" {
+		t.Fatalf("Expected error tenant_routing_unavailable, got %s", response.Error)
 	}
 }
